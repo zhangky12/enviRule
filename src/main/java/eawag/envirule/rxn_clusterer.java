@@ -8,14 +8,19 @@ import org.openscience.cdk.isomorphism.Mappings;
 import org.openscience.cdk.isomorphism.Pattern;
 import org.openscience.cdk.smarts.SmartsPattern;
 import org.openscience.cdk.smiles.SmilesParser;
+import uk.ac.ebi.reactionblast.fingerprints.Feature;
 import uk.ac.ebi.reactionblast.fingerprints.PatternFingerprinter;
 import uk.ac.ebi.reactionblast.fingerprints.interfaces.IPatternFingerprinter;
 import uk.ac.ebi.reactionblast.mechanism.BondChangeCalculator;
 import uk.ac.ebi.reactionblast.mechanism.MappingSolution;
 import uk.ac.ebi.reactionblast.mechanism.ReactionMechanismTool;
+import uk.ac.ebi.reactionblast.mechanism.interfaces.ECBLAST_BOND_CHANGE_FLAGS;
+import uk.ac.ebi.reactionblast.mechanism.interfaces.ECBLAST_FLAGS;
 
 import java.io.*;
 import java.util.*;
+
+import static uk.ac.ebi.reactionblast.mechanism.helper.Utility.getCanonicalisedBondChangePattern;
 
 public class rxn_clusterer {
 
@@ -100,14 +105,14 @@ public class rxn_clusterer {
 
             IReaction Reaction = smilesParser.parseReactionSmiles(reaction);
             IReaction performAtomAtomMapping = performAtomAtomMapping(Reaction, "null");
-            BondChangeCalculator bcc1 = new BondChangeCalculator(performAtomAtomMapping);
-            bcc1.computeBondChanges(true, false);
+            BondChangeCalculator bcc = new BondChangeCalculator(performAtomAtomMapping);
+            bcc.computeBondChanges(true, false);
 
             if(!reactionFPs.containsKey(reaction)){
-                reactionFPs.put(reaction, getChangedBonds(performAtomAtomMapping, bcc1));
+                reactionFPs.put(reaction, getChangedBonds(performAtomAtomMapping, bcc));
             }
         }
-        return reactions;;
+        return reactions;
     }
 
     private static IReaction performAtomAtomMapping(IReaction cdkReaction, String reactionName) throws InvalidSmilesException, AssertionError, Exception {
@@ -126,7 +131,60 @@ public class rxn_clusterer {
     }
 
     public static Map<String, Set<String>> getClusters(List<String> reactions, SmilesParser smilesParser, Map<String, Map<Integer, Double>> reactionFPs, String out_dir, boolean write_centers) throws Exception{
-        return null;
+
+        Map<String, Set<String>> centers = new HashMap<>();
+        // For the reactions that have already been assigned a group, no need to compare them anymore
+        Set<Integer> toRemove = new HashSet<>();
+        float sim;
+
+        Map<String, Map<Integer, Double>> centerMaps = new HashMap<>();
+
+        for (int i=0; i<reactions.size(); i++){
+            if(toRemove.contains(i)) continue;
+            String reaction1 = reactions.get(i);
+
+            centerMaps.put(reaction1, reactionFPs.get(reaction1));
+
+            for(int j=i; j<reactions.size(); j++){
+
+                if(toRemove.contains(j)) continue;
+                String reaction2 = reactions.get(j);
+
+                if(i==j) sim=1.0F;
+                else{
+                    sim = compareDict(reactionFPs.get(reaction1), reactionFPs.get(reaction2));
+                }
+
+                if(sim == 1.0F){
+                    if(!centers.containsKey(reaction1)) centers.put(reaction1, new HashSet<>());
+                    centers.get(reaction1).add(reaction2);
+                    toRemove.add(j);
+                }
+            }
+        }
+
+        ///////////////////////////////////////////////////////////////////////
+        // Write centerMaps as Object
+        if (write_centers) {
+            String centerMaps_file = out_dir + "centers.dat";
+            FileOutputStream fos = new FileOutputStream(centerMaps_file);
+            ObjectOutputStream oos = new ObjectOutputStream(fos);
+            oos.writeObject(centerMaps);
+            oos.close();
+        }
+
+        return centers;
+    }
+
+    public static float compareDict(Map<Integer, Double> map1, Map<Integer, Double> map2){
+        if (map1.size() != map2.size()) return 0.0F;
+
+        for(Map.Entry<Integer, Double> entry: map1.entrySet()){
+            Integer key = entry.getKey();
+            if(!map2.containsKey(key)) return 0.0F;
+            if(entry.getValue().doubleValue() != map2.get(key)) return 0.0F;
+        }
+        return 1.0F;
     }
 
     private static Map<Integer, Double> getChangedBonds(IReaction performAtomAtomMapping, BondChangeCalculator bcc) throws CDKException {
@@ -161,10 +219,106 @@ public class rxn_clusterer {
         // Include all the atoms that only show up in products
         newAddedGroupsInProducts(performAtomAtomMapping, changed_atom_tags);
 
+        // Identify atoms of reaction center in reactant
+        Map<Integer, Double> reactants_rc_atoms = new HashMap<>();
+        for(int i=0; i<reactants.getAtomContainerCount(); i++){
+            IAtomContainer reactant = reactants.getAtomContainer(i);
+            for(IAtom atom: reactant.atoms()){
+                if(changed_atom_tags.contains(atom.getMapIdx())){
+                    String symbol = atom.getSymbol();
+                    if(symbol == "C" && atom.isAromatic()){
+                        symbol = "c";
+                    }else if(symbol == "N" && atom.isAromatic()){
+                        symbol = "n";
+                    }
+                    int hash = -symbol.hashCode();
+                    if(!reactants_rc_atoms.containsKey(hash)) reactants_rc_atoms.put(hash, 0.0);
+                    reactants_rc_atoms.put(hash, reactants_rc_atoms.get(hash) + 1);
+                }
+            }
+        }
 
+        // Identify atoms of reaction center in products
+        Map<Integer, Double> products_rc_atoms = new HashMap<>();
+        for(int i=0; i<products.getAtomContainerCount(); i++){
+            IAtomContainer product = products.getAtomContainer(i);
+            for(IAtom atom: product.atoms()){
+                if(changed_atom_tags.contains(atom.getMapIdx())){
+                    String symbol = atom.getSymbol();
+                    if(symbol == "C" && atom.isAromatic()){
+                        symbol = "c";
+                    }else if(symbol == "N" && atom.isAromatic()){
+                        symbol = "n";
+                    }
+                    int hash = -symbol.hashCode() - 200; // To distinguish with
+                    if(!products_rc_atoms.containsKey(hash)) products_rc_atoms.put(hash, 0.0);
+                    products_rc_atoms.put(hash, products_rc_atoms.get(hash) + 1);
+                }
+            }
+        }
 
+        // Identify changed (changed orders) or formed/cleaved bonds in reactants
+        for(int i=0; i<reactants.getAtomContainerCount(); i++){
+            IAtomContainer reactant = reactants.getAtomContainer(i);
+            for(int j=0; j<reactant.getBondCount(); j++){
+                IBond bond = reactant.getBond(j);
+                if(bond.getProperties().containsKey(ECBLAST_FLAGS.BOND_CHANGE_INFORMATION)){
+                    if(bond.getProperties().get(ECBLAST_FLAGS.BOND_CHANGE_INFORMATION) == ECBLAST_BOND_CHANGE_FLAGS.BOND_CLEAVED ||
+                            bond.getProperties().get(ECBLAST_FLAGS.BOND_CHANGE_INFORMATION) == ECBLAST_BOND_CHANGE_FLAGS.BOND_FORMED ||
+                            bond.getProperties().get(ECBLAST_FLAGS.BOND_CHANGE_INFORMATION) == ECBLAST_BOND_CHANGE_FLAGS.BOND_FORMED_OR_CLEAVED){
+                        formed_cleaved_bonds_reactants.add(bond);
+                    }else{
+                        changed_bonds_reactants.add(bond);
+                    }
+                }
+            }
+        }
+        // Identify changed (changed orders) or formed/cleaved bonds in products
+        for(int i=0; i<products.getAtomContainerCount(); i++){
+            IAtomContainer product = products.getAtomContainer(i);
+            for(int j=0; j<product.getBondCount(); j++){
+                IBond bond = product.getBond(j);
 
-        return null;
+                if(bond.getProperties().containsKey(ECBLAST_FLAGS.BOND_CHANGE_INFORMATION)){
+                    if(bond.getProperties().get(ECBLAST_FLAGS.BOND_CHANGE_INFORMATION) == ECBLAST_BOND_CHANGE_FLAGS.BOND_CLEAVED ||
+                            bond.getProperties().get(ECBLAST_FLAGS.BOND_CHANGE_INFORMATION) == ECBLAST_BOND_CHANGE_FLAGS.BOND_FORMED ||
+                            bond.getProperties().get(ECBLAST_FLAGS.BOND_CHANGE_INFORMATION) == ECBLAST_BOND_CHANGE_FLAGS.BOND_FORMED_OR_CLEAVED){
+                        formed_cleaved_bonds_products.add(bond);
+                    }else{
+                        changed_bonds_products.add(bond);
+                    }
+                }
+            }
+        }
+
+        // Add formed or cleaved bonds to fingerprints
+        for(IBond bond: formed_cleaved_bonds_reactants){
+            formedCleavedWFingerprint_reactants.add(new Feature(getCanonicalisedBondChangePattern(bond), 1.0));
+        }
+
+        for(IBond bond: formed_cleaved_bonds_products){
+            formedCleavedWFingerprint_products.add(new Feature(getCanonicalisedBondChangePattern(bond), 1.0));
+        }
+
+        // Add changed bonds to fingerprints
+        for(IBond bond: changed_bonds_reactants){
+            changedWFingerprint_reactants.add(new Feature(getCanonicalisedBondChangePattern(bond), 1.0));
+        }
+
+        for(IBond bond: changed_bonds_products){
+            changedWFingerprint_products.add(new Feature(getCanonicalisedBondChangePattern(bond), 1.0));
+        }
+
+        Map<Integer, Double> hashedFP = getHashedFingerPrint(formedCleavedWFingerprint_reactants.getWeightedHashedFingerPrint(),
+                formedCleavedWFingerprint_products.getWeightedHashedFingerPrint(),
+                changedWFingerprint_reactants.getWeightedHashedFingerPrint(),
+                changedWFingerprint_products.getWeightedHashedFingerPrint());
+
+        // Also add the atoms in the reaction center of reactants and products into fingerprints
+        hashedFP.putAll(reactants_rc_atoms);
+        hashedFP.putAll(products_rc_atoms);
+
+        return hashedFP;
 
     }
 
@@ -215,5 +369,81 @@ public class rxn_clusterer {
         changed_atom_tags.addAll(addedFunctionalGroups);
     }
 
+    /**
+     * For all the atoms added to products, they need to be included in reaction center as well
+     * @param performAtomAtomMapping
+     * @param changed_atom_tags
+     */
+    private static void newAddedGroupsInProducts(IReaction performAtomAtomMapping, Set<Integer> changed_atom_tags){
+
+        IAtomContainerSet reactants = performAtomAtomMapping.getReactants();
+        IAtomContainerSet products = performAtomAtomMapping.getProducts();
+
+        Set<Integer> reactants_atom_tags = new HashSet<>();
+
+        for(int i=0; i<reactants.getAtomContainerCount(); i++){
+            IAtomContainer mol = reactants.getAtomContainer(i);
+            for(IAtom atom: mol.atoms()){
+                reactants_atom_tags.add(atom.getMapIdx());
+            }
+        }
+
+        for(int i=0; i<products.getAtomContainerCount(); i++){
+            IAtomContainer mol = products.getAtomContainer(i);
+            for(IAtom atom: mol.atoms()){
+                if(!reactants_atom_tags.contains(atom.getMapIdx())){
+                    changed_atom_tags.add(atom.getMapIdx());
+                }
+            }
+        }
+    }
+
+    private static Map<Integer, Double> getHashedFingerPrint(double[] whfp_fc_reactant, double[] whfp_fc_product, double[] whfp_ch_reactant, double[] whfp_ch_product) {
+
+        Map<Integer, Double> countLoc = new HashMap<Integer, Double>();
+
+        BitSet binary = new BitSet(1024 * 4);
+        // 0-1024: formed or cleaved bonds in reactants
+        for (int i = 0; i < whfp_fc_reactant.length; i++) {
+            if (whfp_fc_reactant[i] > 0.) {
+                countLoc.put(i, whfp_fc_reactant[i]);
+                binary.set(i, true);
+            } else {
+                binary.set(i, false);
+            }
+        }
+
+        // 1024-2048: formed or cleaved bonds in products
+        for (int i = 1024; i < 1024 + whfp_fc_product.length; i++) {
+            if (whfp_fc_product[i-1024] > 0.) {
+                countLoc.put(i, whfp_fc_product[i-1024]);
+                binary.set(i, true);
+            } else {
+                binary.set(i, false);
+            }
+        }
+
+        // 2048-3072: order-changed bonds in reactants
+        for (int i = 2048; i < 2048 + whfp_ch_reactant.length; i++) {
+            if (whfp_ch_reactant[i-2048] > 0.) {
+                countLoc.put(i, whfp_ch_reactant[i-2048]);
+                binary.set(i, true);
+            } else {
+                binary.set(i, false);
+            }
+        }
+
+        // 3072-4096: order-changed bonds in products
+        for (int i = 3072; i < 3072 + whfp_ch_product.length; i++){
+            if (whfp_ch_product[i-3072] > 0.) {
+                countLoc.put(i, whfp_ch_product[i-3072]);
+                binary.set(i, true);
+            } else {
+                binary.set(i, false);
+            }
+        }
+
+        return countLoc;
+    }
 
 }
