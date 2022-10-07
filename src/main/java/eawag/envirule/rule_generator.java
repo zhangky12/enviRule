@@ -6,9 +6,7 @@ import org.openscience.cdk.aromaticity.ElectronDonation;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.exception.InvalidSmilesException;
 import org.openscience.cdk.graph.Cycles;
-import org.openscience.cdk.interfaces.IAtom;
-import org.openscience.cdk.interfaces.IAtomContainer;
-import org.openscience.cdk.interfaces.IReaction;
+import org.openscience.cdk.interfaces.*;
 import org.openscience.cdk.isomorphism.Mappings;
 import org.openscience.cdk.isomorphism.Pattern;
 import org.openscience.cdk.smarts.SmartsPattern;
@@ -201,6 +199,104 @@ public class rule_generator {
         return changed_atom_tags;
     }
 
+    /**
+     * For all the atoms only in products, they should be added to the reaction center.
+     * @param performAtomAtomMapping
+     * @param changed_atom_tags
+     */
+    private void newAddedGroupsInProducts(IReaction performAtomAtomMapping, Set<Integer> changed_atom_tags){
+
+        IAtomContainerSet reactants = performAtomAtomMapping.getReactants();
+        IAtomContainerSet products = performAtomAtomMapping.getProducts();
+
+        Set<Integer> reactants_atom_tags = new HashSet<>();
+
+        for(int i=0; i<reactants.getAtomContainerCount(); i++){
+            IAtomContainer mol = reactants.getAtomContainer(i);
+            for(IAtom atom: mol.atoms()){
+                reactants_atom_tags.add(atom.getMapIdx());
+            }
+        }
+
+        for(int i=0; i<products.getAtomContainerCount(); i++){
+            IAtomContainer mol = products.getAtomContainer(i);
+            for(IAtom atom: mol.atoms()){
+                if(!reactants_atom_tags.contains(atom.getMapIdx())){
+                    changed_atom_tags.add(atom.getMapIdx());
+                }
+            }
+        }
+    }
+
+    private void addFunctionalGroups(IAtomContainerSet reactants, Set<Integer> changed_atom_tags){
+        // The list of functional groups are from
+        // "Prediction of Organic Reaction Outcomes Using Machine Learning"
+        // https://github.com/connorcoley/ochem_predict_nn/blob/master/data/generate_reaction_templates.py
+
+        Set<Integer> addedFunctionalGroups = new HashSet<>();
+
+        String[] group_templates = {
+                "C(=O)Cl", //acid chloride
+                "C(=O)O", // carboxylic acid
+                "C(=O)[O-]", // carboxylic acid
+                "[S](=O)(=O)(Cl)", //sulfonyl chloride
+                "[B](O)(O)", //boronic acid
+                "[N](=!@C=!@O)", //isocyanate
+                "[N]=[N]=[N]", //azide
+                "O=C1N(Br)C(=O)CC1", //NBS brominating agent
+                "C=O", //carbonyl
+                "ClS(Cl)=O", //thionyl chloride
+                "[Mg][Br,Cl]", //grinard(non - disassociated)
+                "[#6]S(=O)(=O)[O]", //RSO3 leaving group
+                "[O]S(=O)(=O)[O]", //SO4 group
+                "[N-]=[N+]=[C]", //diazo - alkyl
+        };
+
+        for(int i=0; i<reactants.getAtomContainerCount(); i++){
+            IAtomContainer mol = reactants.getAtomContainer(i);
+            for(String smarts: group_templates){
+                Pattern pattern = SmartsPattern.create(smarts);
+                Mappings matches = pattern.matchAll(mol);
+
+                if(matches.count() == 0) continue;
+                // matches are int[][] of atom index (not the MapId of atom).
+                for(int[] match: matches){
+                    Set<Integer> group_match = new HashSet<>();
+                    for(int m: match) group_match.add(mol.getAtom(m).getMapIdx());
+
+                    for(IAtom atom: mol.atoms()){
+                        // Make sure the atom in reactant is in reaction center and also in a functional group.
+                        if(changed_atom_tags.contains(atom.getMapIdx()) && group_match.contains(atom.getMapIdx())){
+                            addedFunctionalGroups.addAll(group_match);
+                        }
+                    }
+                }
+            }
+        }
+        changed_atom_tags.addAll(addedFunctionalGroups);
+    }
+
+    private void expandReactantNeighbors(IAtomContainerSet compounds, Set<Integer> changed_atom_tags){
+
+        Set<Integer> add_atom_tags = new HashSet<Integer>();
+
+        for(int i=0; i<compounds.getAtomContainerCount(); i++){
+            IAtomContainer mol = compounds.getAtomContainer(i);
+            for(IBond bond: mol.bonds()){
+
+                // For a bond, if one end atom (A) is included in reaction center, while the other end atom (B) is not. Then B should be added into reaction center.
+                int count = 0;
+                if(changed_atom_tags.contains(bond.getEnd().getMapIdx())) count ++;
+                if(changed_atom_tags.contains(bond.getBegin().getMapIdx())) count ++;
+                if(count == 1){
+                    add_atom_tags.add(bond.getBegin().getMapIdx());
+                    add_atom_tags.add(bond.getEnd().getMapIdx());
+                }
+            }
+        }
+
+        changed_atom_tags.addAll(add_atom_tags);
+    }
 
 
     private IReaction performAtomAtomMapping(IReaction cdkReaction, String reactionName) throws InvalidSmilesException, AssertionError, Exception {
