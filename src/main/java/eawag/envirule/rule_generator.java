@@ -1,11 +1,23 @@
 package eawag.envirule;
 
 import org.openscience.cdk.DefaultChemObjectBuilder;
+import org.openscience.cdk.aromaticity.Aromaticity;
+import org.openscience.cdk.aromaticity.ElectronDonation;
 import org.openscience.cdk.exception.CDKException;
+import org.openscience.cdk.exception.InvalidSmilesException;
+import org.openscience.cdk.graph.Cycles;
+import org.openscience.cdk.interfaces.IAtom;
+import org.openscience.cdk.interfaces.IAtomContainer;
 import org.openscience.cdk.interfaces.IReaction;
+import org.openscience.cdk.isomorphism.Mappings;
+import org.openscience.cdk.isomorphism.Pattern;
+import org.openscience.cdk.smarts.SmartsPattern;
 import org.openscience.cdk.smiles.SmiFlavor;
 import org.openscience.cdk.smiles.SmilesGenerator;
 import org.openscience.cdk.smiles.SmilesParser;
+import uk.ac.ebi.reactionblast.mechanism.BondChangeCalculator;
+import uk.ac.ebi.reactionblast.mechanism.MappingSolution;
+import uk.ac.ebi.reactionblast.mechanism.ReactionMechanismTool;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -22,6 +34,10 @@ public class rule_generator {
     private String file;
     private int radius;
 
+    private final SmilesParser sp = new SmilesParser(DefaultChemObjectBuilder.getInstance());
+    private final SmilesGenerator sg = new SmilesGenerator(SmiFlavor.AtomAtomMap);
+    private final Aromaticity aromaticity = new Aromaticity(ElectronDonation.daylight(), Cycles.or(Cycles.all(), Cycles.edgeShort()));
+
     public rule_generator(boolean generalizeIgnoreHydrogen, boolean includeFunctionalGroups, String file, int radius){
         this.generalizeIgnoreHydrogen = generalizeIgnoreHydrogen;
         this.includeFunctionalGroups = includeFunctionalGroups;
@@ -31,8 +47,7 @@ public class rule_generator {
 
     public Set<String> generate() throws  Exception {
 
-        final SmilesParser smilesParser = new SmilesParser(DefaultChemObjectBuilder.getInstance());
-        final SmilesGenerator smilesGenerator = new SmilesGenerator(SmiFlavor.AtomAtomMap);
+
 
         List<String> reactions = parseReactionFile(file);
         List<String> baseRules = new ArrayList<>();
@@ -114,6 +129,17 @@ public class rule_generator {
 
             unmapped += unmapped_product;
 
+            if(checkCoA(unmapped)) {
+                coa_count += 1;
+            }
+
+            IReaction Reaction = sp.parseReactionSmiles(unmapped);
+            IReaction performAtomAtomMapping = performAtomAtomMapping(Reaction, null);
+            atomMappingReactions.add(performAtomAtomMapping);
+
+            String base_rule = getNewRule(performAtomAtomMapping, sg, 0, false);
+
+
 
 
 
@@ -128,7 +154,88 @@ public class rule_generator {
 
     }
 
+    /**
+     *
+     * @param performAtomAtomMapping: atom-mapped reaction
+     * @param sg
+     * @param radius: radius to expand reaction center
+     * @param unmapUnrelated: whether to set the mapping number of unmapped atoms to null
+     * @return
+     * @throws Exception
+     */
+    private String getNewRule(IReaction performAtomAtomMapping, SmilesGenerator sg, int radius, Boolean unmapUnrelated) throws Exception {
+
+        // Get changed atoms
+        Set<Integer> changed_atom_tags = getChangedAtoms(performAtomAtomMapping, radius);
+
+        // Extract reaction center from reactants and products
+        IAtomContainer reactant_fragments = getFragmentsMol(performAtomAtomMapping.getReactants(), changed_atom_tags);
+        IAtomContainer product_fragments = getFragmentsMol(performAtomAtomMapping.getProducts(), changed_atom_tags);
+
+        return cleanSMIRKS(reactant_fragments, product_fragments, sg, changed_atom_tags, performAtomAtomMapping, unmapUnrelated);
+    }
+
+    private Set<Integer> getChangedAtoms(IReaction performAtomAtomMapping, int radius) throws Exception{
+        // Get changed atoms
+        BondChangeCalculator bcc = new BondChangeCalculator(performAtomAtomMapping);
+        bcc.computeBondChanges(true, false);
+        Set<Integer> changed_atom_tags = new HashSet<Integer>();
+
+        for(IAtom atom: bcc.getReactionCenterSet()){
+            changed_atom_tags.add(atom.getMapIdx());
+        }
+
+        // expand the neighbors in reactants
+        for(int i=0; i<radius; i++){
+            expandReactantNeighbors(performAtomAtomMapping.getReactants(), changed_atom_tags);
+        }
+
+        // include functional groups
+        if(includeFunctionalGroups){
+            if(radius != 0) addFunctionalGroups(performAtomAtomMapping.getReactants(), changed_atom_tags);
+        }
+
+        // include all the added groups in products if there are any
+        newAddedGroupsInProducts(performAtomAtomMapping, changed_atom_tags);
+
+        return changed_atom_tags;
+    }
+
+
+
+    private IReaction performAtomAtomMapping(IReaction cdkReaction, String reactionName) throws InvalidSmilesException, AssertionError, Exception {
+        cdkReaction.setID(reactionName);
+        /*
+         RMT for the reaction mapping
+         */
+        boolean forceMapping = true;//Overrides any mapping present int the reaction
+        boolean generate2D = true;//2D perception of the stereo centers
+        boolean generate3D = false;//2D perception of the stereo centers
+        boolean standardizeReaction = true; //Standardize the reaction
+        ReactionMechanismTool rmt = new ReactionMechanismTool(cdkReaction, forceMapping, generate2D, generate3D, standardizeReaction);
+        MappingSolution s = rmt.getSelectedSolution();//Fetch the AAM Solution
+        IReaction reaction = s.getReaction();//Fetch Mapped Reaction
+        return reaction;
+    }
+
     private boolean checkCoA(String base_rule) throws CDKException {
+
+        Pattern ptrn1 = SmartsPattern.create("CC(C)(COP(O)(=O)OP(O)(=O)OCC1OC(C(O)C1OP(O)(O)=O)n1cnc2c(N)ncnc12)C(O)C(=O)NCCC(=O)NCCS");
+        String reactants = base_rule.split(">>")[0];
+        String products = base_rule.split(">>")[1];
+
+        IAtomContainer reactants_mol = sp.parseSmiles(reactants);
+        IAtomContainer products_mol = sp.parseSmiles(products);
+
+        aromaticity.apply(reactants_mol);
+        aromaticity.apply(products_mol);
+
+        Mappings reactants_res = ptrn1.matchAll(reactants_mol);
+        Mappings products_res = ptrn1.matchAll(products_mol);
+
+        if (reactants_res.count() == 0 && products_res.count() != 0){
+            return true;
+        }
 
         return false;
     }
