@@ -1,5 +1,6 @@
 package eawag.envirule;
 
+import org.openscience.cdk.AtomContainer;
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.aromaticity.Aromaticity;
 import org.openscience.cdk.aromaticity.ElectronDonation;
@@ -20,10 +21,7 @@ import uk.ac.ebi.reactionblast.mechanism.ReactionMechanismTool;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class rule_generator {
 
@@ -136,6 +134,8 @@ public class rule_generator {
             atomMappingReactions.add(performAtomAtomMapping);
 
             String base_rule = getNewRule(performAtomAtomMapping, sg, 0, false);
+            baseRules.add(base_rule);
+            newRules.add(generalizedForm(base_rule, performAtomAtomMapping, sp, sg, radius, false));
 
 
 
@@ -150,6 +150,53 @@ public class rule_generator {
 
         return null;
 
+    }
+
+    private String generalizedForm(String base_rule, IReaction performAtomAtomMapping, SmilesParser smilesParser, SmilesGenerator sg, int radius, boolean unmapUnrelated) throws Exception {
+
+        String base_reactant = base_rule.split(">>")[0];
+        String base_product = base_rule.split(">>")[1];
+
+        String expanded_rule = getNewRule(performAtomAtomMapping, sg, radius, false);
+        Set<Integer> unique_id = uniqueMapId(base_reactant, base_product);
+
+        
+    }
+
+    /**
+     * Get unique mapping ID for reactant and product from SMARTS
+     * @param reactant_smart
+     * @param product_smart
+     * @return
+     */
+    private Set<Integer> uniqueMapId(String reactant_smart, String product_smart){
+
+        Set<Integer> unique = new HashSet<>();
+
+        Set<Integer> reactant_Id = new HashSet<>();
+        Set<Integer> product_Id = new HashSet<>();
+
+        // Get segments and mapId of reactants
+        List<String> reactant_segments = new ArrayList<>();
+        List<Integer> reactant_segmentsId = new ArrayList<>();
+        getSegmentsWithID(reactant_smart, reactant_segments, reactant_segmentsId);
+        reactant_Id.addAll(reactant_segmentsId);
+
+        // Get segments and mapId of products
+        List<String> product_segments = new ArrayList<>();
+        List<Integer> product_segmentsId = new ArrayList<>();
+        getSegmentsWithID(product_smart, product_segments, product_segmentsId);
+        product_Id.addAll(product_segmentsId);
+
+        for(int id: reactant_Id){
+            if(!product_Id.contains(id)) unique.add(id);
+        }
+
+        for(int id: product_Id){
+            if(!reactant_Id.contains(id)) unique.add(id);
+        }
+
+        return unique;
     }
 
     /**
@@ -171,6 +218,232 @@ public class rule_generator {
         IAtomContainer product_fragments = getFragmentsMol(performAtomAtomMapping.getProducts(), changed_atom_tags);
 
         return cleanSMIRKS(reactant_fragments, product_fragments, sg, changed_atom_tags, performAtomAtomMapping, unmapUnrelated);
+    }
+
+    /**
+     * Combine SMARTS of reactant fragments and product fragments into SMIRKS
+     * @param reactant_fragments
+     * @param product_fragments
+     * @param sg
+     * @param changed_atom_tags
+     * @param performAtomAtomMapping
+     * @param unmapUnrelated
+     * @return
+     * @throws CDKException
+     */
+    private String cleanSMIRKS(IAtomContainer reactant_fragments, IAtomContainer product_fragments, SmilesGenerator sg, Set<Integer> changed_atom_tags, IReaction performAtomAtomMapping, Boolean unmapUnrelated) throws CDKException{
+
+        String reactant_smart = sg.create(reactant_fragments);
+        String product_smart = sg.create(product_fragments);
+
+        // First, replace all bonds with explicit form
+        String new_smirks = correctBonds(performAtomAtomMapping, reactant_smart, product_smart);
+
+        if(!unmapUnrelated){
+            return new_smirks;
+        }
+
+        return unmapUnrelated(reactant_fragments, product_fragments, new_smirks, changed_atom_tags);
+    }
+
+    private String unmapUnrelated(IAtomContainer reactant_fragments, IAtomContainer product_fragments, String rule, Set<Integer> changed_atom_tags){
+        Set<Integer> unique_atom_tags = new HashSet<>();
+        Set<Integer> intersect_atom_tags = getIntersectMapId(reactant_fragments, product_fragments);
+        String reactant_smart = rule.split(">>")[0];
+        String product_smart = rule.split(">>")[1];
+
+        for(int tag: changed_atom_tags){
+            if(!intersect_atom_tags.contains(tag)){
+                unique_atom_tags.add(tag);
+            }
+        }
+
+        for(int tag: unique_atom_tags){
+            String tag_s = ":" + tag;
+            reactant_smart = reactant_smart.replace(tag_s, "");
+            product_smart = product_smart.replace(tag_s, "");
+        }
+
+        return reactant_smart+">>"+product_smart;
+    }
+
+    private Set<Integer> getIntersectMapId(IAtomContainer reactant_fragments, IAtomContainer product_fragments){
+
+        Set<Integer> reactants_atom_tags = new HashSet<Integer>();
+        Set<Integer> products_atom_tags = new HashSet<Integer>();
+
+        for(IAtom atom: reactant_fragments.atoms()){
+            reactants_atom_tags.add(atom.getMapIdx());
+        }
+
+        for(IAtom atom: product_fragments.atoms()){
+            products_atom_tags.add(atom.getMapIdx());
+        }
+
+        // Now reactants_atom_tags becomes the intersection
+        reactants_atom_tags.retainAll(products_atom_tags);
+
+        return reactants_atom_tags;
+    }
+
+    private  String correctBonds(IReaction performAtomAtomMapping, String reactant_smart, String product_smart) throws CDKException {
+
+        reactant_smart = replaceWithExplicitBond(performAtomAtomMapping.getReactants(), reactant_smart, false, true);
+        product_smart = replaceWithExplicitBond(performAtomAtomMapping.getProducts(), product_smart, false, false);
+
+        String new_smirks = reactant_smart + ">>" + product_smart;
+
+        return new_smirks;
+
+    }
+
+    /**
+     * Replace bonds in SMARTs with explicit version
+     * @param compounds
+     * @param smart
+     * @param fragments
+     * @param isReactant
+     * @return
+     * @throws CDKException
+     */
+    private String replaceWithExplicitBond(IAtomContainerSet compounds, String smart, boolean fragments, boolean isReactant) throws CDKException {
+
+        Map<String, String> replace = new HashMap<>();
+        // segments: for example, [C;$(...):1][N;$(...),$(...):2], the segments will be {[C;$(...):1], [N;$(...),$(...):2]}, and the segments_mapId will be {1, 2}.
+        List<String> segments = new ArrayList<>();
+        List<Integer> segments_mapId = new ArrayList<>();
+        Map<IBond.Order, String> bond_symbol = new HashMap<>();
+        bond_symbol.put(IBond.Order.SINGLE, "-");
+        bond_symbol.put(IBond.Order.DOUBLE, "=");
+
+        getSegmentsWithID(smart, segments, segments_mapId);
+
+        if(segments.size() < 2){
+            // If there is only one atom, then there is no need to add explicit bond
+            return smart;
+        }
+
+        if(!fragments){
+            // If it's not only fragments but the whole molecule, then re-assign aromaticity
+            for(int k = 0; k<compounds.getAtomContainerCount(); k++){
+                IAtomContainer mol = compounds.getAtomContainer(k);
+                aromaticity.apply(mol);
+            }
+            if(isReactant) {
+//                wholeMolecule = compounds;
+            }
+        }
+
+        for(int i=1; i< segments.size(); i++){
+
+            // Find the bond of this segment that can be seen in SMARTs.
+            boolean foundStart = false;
+
+            for(int j=i-1; j>=0; j--){
+                Set<Integer> bond_ends = new HashSet<>();
+                bond_ends.add(segments_mapId.get(i));
+                bond_ends.add(segments_mapId.get(j));
+                for(int k=0; k<compounds.getAtomContainerCount(); k++){
+                    IAtomContainer mol = compounds.getAtomContainer(k);
+
+                    for(int b=0; b<mol.getBondCount(); b++){
+                        IBond bond = mol.getBond(b);
+                        if(bond_ends.contains(bond.getBegin().getMapIdx()) && bond_ends.contains(bond.getEnd().getMapIdx())){
+                            String replace_string;
+                            if(bond.isAromatic() && isReactant){
+                                replace_string = ":" + segments.get(i);
+                            }else{
+                                replace_string = bond_symbol.get(bond.getOrder()) + segments.get(i);
+                            }
+                            replace.put(segments.get(i), replace_string);
+                            foundStart = true;
+                            break;
+                        }
+                    }
+                    if(foundStart) break;
+                }
+                if(foundStart) break;
+            }
+        }
+
+        // First, get rid of all the existing explicit bond information
+        smart = smart.replace("=", "");
+        smart = smart.replace("#", "");
+
+        // Next, replace the bond with explicit version
+        for(Map.Entry<String, String> entry: replace.entrySet()){
+            smart = smart.replace(entry.getKey(), entry.getValue());
+        }
+
+        return smart;
+
+    }
+
+    private void getSegmentsWithID(String smart, List<String> segments, List<Integer> segments_mapId){
+
+        boolean start_atom = false;
+        String atom_symbol = "";
+        int brackets_count = 0;
+        for(int i=0; i<smart.length(); i++){
+            char c = smart.charAt(i);
+            if(c == '['){
+                start_atom = true;
+                brackets_count += 1;
+            }
+            if(start_atom){
+                atom_symbol += c;
+            }
+            if(c == ']'){
+                brackets_count -= 1;
+                if (brackets_count > 0) continue;
+
+                start_atom = false;
+                // Extract the mapId of this atom
+                String map_id;
+                try {
+                    map_id = atom_symbol.split(":(?=[0-9])")[1];
+                }catch (Exception e){
+                    atom_symbol = "";
+                    continue;
+                }
+                map_id = map_id.substring(0, map_id.length()-1);
+                int mapId = Integer.valueOf(map_id);
+                segments_mapId.add(mapId);
+
+                segments.add(atom_symbol);
+                atom_symbol = "";
+            }
+        }
+    }
+
+
+    /**
+     * Extract changed atoms and bonds from compounds, and put them into a new molecule
+     * @param compounds
+     * @param changed_atom_tags
+     * @return fragmentsMol
+     */
+
+    private IAtomContainer getFragmentsMol(IAtomContainerSet compounds, Set<Integer> changed_atom_tags){
+
+        IAtomContainer fragmentsMol = new AtomContainer();
+
+        for(int i=0; i<compounds.getAtomContainerCount(); i++){
+            IAtomContainer mol = compounds.getAtomContainer(i);
+            for(IAtom atom: mol.atoms()){
+                if(changed_atom_tags.contains(atom.getMapIdx())){
+                    fragmentsMol.addAtom(atom);
+                }
+            }
+
+            for(IBond bond: mol.bonds()){
+                if(changed_atom_tags.contains(bond.getBegin().getMapIdx()) && changed_atom_tags.contains(bond.getEnd().getMapIdx())){
+                    fragmentsMol.addBond(bond);
+                }
+            }
+        }
+
+        return fragmentsMol;
     }
 
     private Set<Integer> getChangedAtoms(IReaction performAtomAtomMapping, int radius) throws Exception{
