@@ -1,19 +1,27 @@
 package eawag.envirule;
 
 import org.openscience.cdk.AtomContainer;
+import org.openscience.cdk.AtomContainerSet;
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.aromaticity.Aromaticity;
 import org.openscience.cdk.aromaticity.ElectronDonation;
 import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.exception.InvalidSmilesException;
+import org.openscience.cdk.fingerprint.MACCSFingerprinter;
 import org.openscience.cdk.graph.Cycles;
+import org.openscience.cdk.inchi.InChIGenerator;
+import org.openscience.cdk.inchi.InChIGeneratorFactory;
 import org.openscience.cdk.interfaces.*;
 import org.openscience.cdk.isomorphism.Mappings;
 import org.openscience.cdk.isomorphism.Pattern;
+import org.openscience.cdk.silent.SilentChemObjectBuilder;
 import org.openscience.cdk.smarts.SmartsPattern;
 import org.openscience.cdk.smiles.SmiFlavor;
 import org.openscience.cdk.smiles.SmilesGenerator;
 import org.openscience.cdk.smiles.SmilesParser;
+import org.openscience.cdk.tools.CDKHydrogenAdder;
+import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
+import uk.ac.ebi.reactionblast.fingerprints.tools.Similarity;
 import uk.ac.ebi.reactionblast.mechanism.BondChangeCalculator;
 import uk.ac.ebi.reactionblast.mechanism.MappingSolution;
 import uk.ac.ebi.reactionblast.mechanism.ReactionMechanismTool;
@@ -22,6 +30,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
 
 public class rule_generator {
 
@@ -136,20 +145,984 @@ public class rule_generator {
             String base_rule = getNewRule(performAtomAtomMapping, sg, 0, false);
             baseRules.add(base_rule);
             newRules.add(generalizedForm(base_rule, performAtomAtomMapping, sp, sg, radius, false));
-
-
-
-
-
-
-
-
-
         }
 
+        if (coa_count != 0 && coa_count >= (reactions.size()/2)){
+            List<String> newRules_update = new ArrayList<>();
+            List<String> baseRules_update = new ArrayList<>();
+            for (int i=0; i< newRules.size(); i++){
+                String reactants = newRules.get(i).split(">>")[0];
+                List<String> reactant_segments = new ArrayList<>();
+                List<Integer> reactant_segmentsId = new ArrayList<>();
+                getSegmentsWithID(reactants, reactant_segments, reactant_segmentsId);
 
-        return null;
+                for (int j=0; j<reactant_segments.size(); j++){
+                    if (reactant_segments.get(j).contains("[C")){
+                        String base_rule = baseRules.get(i).split(">>")[0] + ">>" + "CC(C)(COP(=O)(O)OP(=O)(O)OCC1C(C(C(N2C=NC3=C2N=CN=C3N)O1)O)OP(=O)(O)O)C(O)C(=O)NCCC(=O)NCCS" + "-[C:" + reactant_segmentsId.get(j) + "]";
+                        String new_rule = reactants + ">>" + "CC(C)(COP(=O)(O)OP(=O)(O)OCC1C(C(C(N2C=NC3=C2N=CN=C3N)O1)O)OP(=O)(O)O)C(O)C(=O)NCCC(=O)NCCS" + "-[C:" + reactant_segmentsId.get(j) + "]";
+                        baseRules_update.add(base_rule);
+                        newRules_update.add(new_rule);
+                        break;
+                    }
+                }
+            }
+            baseRules = baseRules_update;
+            newRules = newRules_update;
+        }
 
+        if(newRules.isEmpty()) System.exit(1);
+
+        // Get the standardized form of base rule
+        String standardized_base = initializeStandardizedMapping(baseRules.get(0));
+
+        // Check if it has disconnected centers
+        if (standardized_base.split(">>")[0].contains(".")){
+
+            InChIGeneratorFactory factory = InChIGeneratorFactory.getInstance();
+            Set<String> unique_InchiKey = new HashSet<>();
+
+            for (int i=0; i<atomMappingReactions.size(); i++){
+
+                String connected_rule = connectCenters(atomMappingReactions.get(i), sg, sp, radius);
+
+                String InchiKey_reactant = getInChiKeyOfCondition(connected_rule.split(">>")[0], sp, factory);
+                String InchiKey_product = getInChiKeyOfCondition(connected_rule.split(">>")[1], sp, factory);
+                String InchiKey_total = InchiKey_reactant + "+" + InchiKey_product;
+                if(unique_InchiKey.contains(InchiKey_total)) continue;
+                unique_InchiKey.add(InchiKey_total);
+                final_rules.add(connected_rule);
+            }
+            return final_rules;
+        }
+
+        // Correct the mapping of the rules based on standardized base rule
+        List<String> standardized_base_smirks = new ArrayList<>();
+        List<String> standardized_smirks = new ArrayList<>();
+        // Keep record of the changed atom mapping
+        List<Map<String, String>> atom_map_list = new ArrayList<>();
+
+        for(int i=0; i<baseRules.size(); i++){
+            String base_smirks =  baseRules.get(i);
+            Map<String, String> atom_map = standadizedRuleMapping(standardized_base, base_smirks, sp);
+            atom_map_list.add(atom_map);
+            Map<String, String> first_level_map = new HashMap<>();
+            Map<String, String> second_level_map = new HashMap<>();
+
+            int start = 0;
+
+            for(Map.Entry<String, String> entry: atom_map.entrySet()){
+                start ++;
+                first_level_map.put(entry.getKey(), "a"+start+"]");
+                second_level_map.put("a"+start+"]", entry.getValue());
+            }
+
+            String base_rule_smirks = baseRules.get(i);
+            String expanded_smirks = newRules.get(i);
+
+            for(Map.Entry<String, String> entry: first_level_map.entrySet()){
+                base_rule_smirks = base_rule_smirks.replace(entry.getKey(), entry.getValue());
+                expanded_smirks = expanded_smirks.replace(entry.getKey(), entry.getValue());
+            }
+
+            for(Map.Entry<String, String> entry: second_level_map.entrySet()){
+                base_rule_smirks = base_rule_smirks.replace(entry.getKey(), entry.getValue());
+                expanded_smirks = expanded_smirks.replace(entry.getKey(), entry.getValue());
+            }
+            standardized_base_smirks.add(base_rule_smirks);
+            standardized_smirks.add(expanded_smirks);
+        }
+
+        // Complete rules with hydrogen
+        List<String> complete_rules = new ArrayList<>();
+        for (int i=0; i< standardized_base_smirks.size(); i++){
+            String base_rule = standardized_base_smirks.get(i);
+            String new_rule = standardized_smirks.get(i);
+
+            if(generalizeIgnoreHydrogen){
+                base_rule = base_rule.replaceAll("H[0-9]*", "");
+                new_rule = new_rule.replaceAll("H[0-9]*", "");
+            }
+
+            if (coa_count ==0 || coa_count < (reactions.size()/2)){
+                String complete_rule = completeWithHydrogen(base_rule, new_rule, atomMappingReactions.get(i), atom_map_list.get(i), sp);
+                if (complete_rule.compareTo("")==0) continue;
+                complete_rules.add(complete_rule);
+            }else{
+                complete_rules.add(new_rule);
+            }
+        }
+
+        List<Map<Integer, String>> rule_condition = new ArrayList<>();
+        // Map from conditions to inchiKey
+        Map<String, String> conditions_inchiKey = new HashMap<>();
+
+        for (String complete_rule: complete_rules){
+            String reactant = complete_rule.split(">>")[0];
+
+            List<String> reactant_segments = new ArrayList<>();
+            List<Integer> reactant_segmentsId = new ArrayList<>();
+            getSegmentsWithID(reactant, reactant_segments, reactant_segmentsId);
+            rule_condition.add(getConditions(reactant_segments, conditions_inchiKey, sp));
+        }
+
+        // Extract the standardized mapping ID
+        List<Integer> std_mapId = new ArrayList<>(rule_condition.get(0).keySet());
+
+        // First, for each center atom, find out rules that can be combined
+        Map<Integer, Map<String, Set<Integer>>> combine_indexes = new HashMap<>();
+        for (int mapId: std_mapId){
+            Map<String, Set<Integer>> combine_rule_index = new HashMap<>();
+
+            Map<String, Integer> unique_inchiKey = new HashMap<>();
+
+            for (int i=0; i<rule_condition.size(); i++){
+                String condition = rule_condition.get(i).get(mapId);
+                if (unique_inchiKey.containsKey(conditions_inchiKey.get(condition))){
+
+                    if(!combine_rule_index.containsKey(conditions_inchiKey.get(condition))) combine_rule_index.put(conditions_inchiKey.get(condition), new HashSet<>());
+                    combine_rule_index.get(conditions_inchiKey.get(condition)).add(unique_inchiKey.get(conditions_inchiKey.get(condition)));
+                    combine_rule_index.get(conditions_inchiKey.get(condition)).add(i);
+                }else{
+                    unique_inchiKey.put(conditions_inchiKey.get(condition), i);
+                }
+            }
+            combine_indexes.put(mapId, combine_rule_index);
+        }
+
+        // Next, for each center atom, combine rules. Make sure there is no overlapping of applicable domain
+        Set<String> applicable_domain = new HashSet<>();
+        Set<Integer> included_indexes = new HashSet<>();
+        for (int mapId: std_mapId){
+            Map<String, Set<Integer>> combine_rule_index = combine_indexes.get(mapId);
+            for (Map.Entry<String, Set<Integer>> entry: combine_rule_index.entrySet()){
+                int count = 0;
+                String start_rule = "";
+
+                Map<Integer, Set<String>> unique_condition = new HashMap<>();
+                for (int mapId3: std_mapId){
+                    if (mapId3 == mapId) continue;
+                    unique_condition.put(mapId3, new HashSet<>());
+                }
+
+                for (int index: entry.getValue()){
+
+                    included_indexes.add(index);
+                    // Domain is a concatenated inchiKey
+                    String domain = "";
+                    for (int mapId2: std_mapId) domain += conditions_inchiKey.get(rule_condition.get(index).get(mapId2))+"+";
+                    if(applicable_domain.contains(domain)) continue;
+                    else applicable_domain.add(domain);
+
+                    if (count == 0){
+                        start_rule = complete_rules.get(index);
+                        count += 1;
+                        continue;
+                    }
+
+                    String reactants = start_rule.split(">>")[0];
+                    String products = start_rule.split(">>")[1];
+                    for (int mapId2: std_mapId) {
+                        if(mapId2 == mapId) continue;
+                        // Avoid duplicate conditions for each center atom
+                        if(unique_condition.get(mapId2).contains(rule_condition.get(index).get(mapId2))) continue;
+                        if(!rule_condition.get(index).containsKey(mapId2)) continue;
+                        reactants = reactants.replace(":"+mapId2, ",$(" + rule_condition.get(index).get(mapId2)+"):"+mapId2);
+                        unique_condition.get(mapId2).add(rule_condition.get(index).get(mapId2));
+                    }
+                    start_rule = reactants + ">>" + products;
+
+                }
+                if (start_rule.compareTo("")==0) continue;
+                final_rules.add(unmapUnrelatedAtoms(start_rule));
+            }
+        }
+
+        for (int i=0; i<complete_rules.size(); i++){
+            if(included_indexes.contains(i)) continue;
+            final_rules.add(unmapUnrelatedAtoms(complete_rules.get(i)));
+        }
+
+        return final_rules;
+
+    }
+
+    private String unmapUnrelatedAtoms(String complete_rule){
+
+        String reactant = complete_rule.split(">>")[0];
+        String product = complete_rule.split(">>")[1];
+
+        Set<Integer> unique_id = uniqueMapId(reactant, product);
+        List<Integer> unique_id_list = new ArrayList<>(unique_id);
+        Collections.reverse(unique_id_list);
+
+
+        for (int id: unique_id_list){
+            complete_rule = complete_rule.replace(":"+id, "");
+        }
+
+        return complete_rule;
+    }
+
+    /**
+     * Extract the conditions for each center atom
+     * @param segments
+     * @return
+     */
+    private Map<Integer, String> getConditions(List<String> segments, Map<String, String> conditions_inchiKey, SmilesParser smilesParser) throws CDKException {
+
+        Map<Integer, String> conditions = new HashMap<>();
+        InChIGeneratorFactory factory = InChIGeneratorFactory.getInstance();
+
+        for (String segment: segments){
+            String condition = "";
+            int mapId = 0;
+            java.util.regex.Pattern condition_pattern = java.util.regex.Pattern.compile("(?<=\\$\\().+(?=\\):[0-9]+])");
+            Matcher condition_matcher = condition_pattern.matcher(segment);
+            if (condition_matcher.find()) {
+                condition = condition_matcher.group(0);
+            }
+
+            java.util.regex.Pattern mapId_pattern = java.util.regex.Pattern.compile("(?<=\\):)[0-9]+(?=\\])");
+            Matcher mapId_matcher = mapId_pattern.matcher(segment);
+            if(mapId_matcher.find()) {
+                mapId = Integer.valueOf(mapId_matcher.group(0));
+            }
+
+            conditions.put(mapId, condition);
+            conditions_inchiKey.put(condition, getInChiKeyOfCondition(condition, smilesParser, factory));
+        }
+        return conditions;
+    }
+
+    /**
+     * Change the atom-mapping ID of smirks2 based on smirks1. The same atom in reaction center should have the same mapping ID in smirks1 and smirks2.
+     * @param smirks1
+     * @param smirks2
+     * @param smilesParser
+     * @return
+     * @throws Exception
+     */
+    private Map<String, String> standadizedRuleMapping(String smirks1, String smirks2, SmilesParser smilesParser) throws Exception {
+
+        String reactants1 = smirks1.split(">>")[0];
+        String reactants2 = smirks2.split(">>")[0];
+
+        String products1 = smirks1.split(">>")[1];
+        String products2 = smirks2.split(">>")[1];
+
+        // Remove all the +,-
+        reactants1 = reactants1.replaceAll("(?<=[A-Z,a-z])\\+[0-9]*", "").replaceAll("(?<=[A-Z,a-z])-[0-9]*", "");
+        reactants2 = reactants2.replaceAll("(?<=[A-Z,a-z])\\+[0-9]*", "").replaceAll("(?<=[A-Z,a-z])-[0-9]*", "");
+
+        products1 = products1.replaceAll("(?<=[A-Z,a-z])\\+[0-9]*", "").replaceAll("(?<=[A-Z,a-z])-[0-9]*", "");
+        products2 = products2.replaceAll("(?<=[A-Z,a-z])\\+[0-9]*", "").replaceAll("(?<=[A-Z,a-z])-[0-9]*", "");
+
+        Map<String, String> atom_map = new HashMap<>();
+
+        // Put reactants into molecule
+        IAtomContainerSet reactants1_acs = new AtomContainerSet();
+        if(reactants1.contains(".")){
+            // Has more than one reactant
+            String[] reactants_list1 = reactants1.split("\\.");
+            for(String reactant: reactants_list1){
+                IAtomContainer mol = smilesParser.parseSmiles(reactant);
+                reactants1_acs.addAtomContainer(mol);
+            }
+        }else{
+            IAtomContainer mol = smilesParser.parseSmiles(reactants1);
+            reactants1_acs.addAtomContainer(mol);
+        }
+
+        IAtomContainerSet reactants2_acs = new AtomContainerSet();
+        if(reactants2.contains(".")){
+            String[] reactants_list2 = reactants2.split("\\.");
+            for(String reactant: reactants_list2){
+                IAtomContainer mol = smilesParser.parseSmiles(reactant);
+                reactants2_acs.addAtomContainer(mol);
+            }
+        }else{
+            IAtomContainer mol = smilesParser.parseSmiles(reactants2);
+            reactants2_acs.addAtomContainer(mol);
+        }
+
+        // Put products into molecule
+        IAtomContainerSet products1_acs = new AtomContainerSet();
+        if(products1.contains(".")){
+            String[] products_list1 = products1.split("\\.");
+            for(String product: products_list1){
+                IAtomContainer mol = smilesParser.parseSmiles(product);
+                products1_acs.addAtomContainer(mol);
+            }
+        }else{
+            IAtomContainer mol = smilesParser.parseSmiles(products1);
+            products1_acs.addAtomContainer(mol);
+        }
+
+        IAtomContainerSet products2_acs = new AtomContainerSet();
+        if(products2.contains(".")){
+            String[] products_list2 = products2.split("\\.");
+            for(String product: products_list2){
+                IAtomContainer mol = smilesParser.parseSmiles(product);
+                products2_acs.addAtomContainer(mol);
+            }
+        }else{
+            IAtomContainer mol = smilesParser.parseSmiles(products2);
+            products2_acs.addAtomContainer(mol);
+        }
+
+        SmilesGenerator g = new SmilesGenerator(SmiFlavor.Canonical);
+
+        // If in two smirks, the number of reactants or the number of products are different, then the base rules are different, so there
+        // is no need to continue.
+        if(reactants1_acs.getAtomContainerCount() != reactants2_acs.getAtomContainerCount() ||
+                products2_acs.getAtomContainerCount() != products2_acs.getAtomContainerCount()) return atom_map;
+
+        // Now, only support at most two reaction centers
+        if(reactants1_acs.getAtomContainerCount() == 2){
+
+            // The order of two centers might be different in two reactants
+            // case 1: orders are the same
+            Map<String, String> tmp_map1 = compareInAtomContainer(reactants1_acs.getAtomContainer(0), reactants2_acs.getAtomContainer(0));
+            Map<String, String> tmp_map2 = compareInAtomContainer(reactants1_acs.getAtomContainer(1), reactants2_acs.getAtomContainer(1));
+            // case 2: orders are different
+            Map<String, String> tmp_map3 = compareInAtomContainer(reactants1_acs.getAtomContainer(0), reactants2_acs.getAtomContainer(1));
+            Map<String, String> tmp_map4 = compareInAtomContainer(reactants1_acs.getAtomContainer(1), reactants2_acs.getAtomContainer(0));
+
+            if(tmp_map1.size() == 0 || tmp_map2.size() == 0){
+                atom_map.putAll(tmp_map3);
+                atom_map.putAll(tmp_map4);
+            }else if(tmp_map3.size() == 0 || tmp_map4.size() == 0){
+                atom_map.putAll(tmp_map1);
+                atom_map.putAll(tmp_map2);
+            }else{
+                if(tmp_map1.size()+tmp_map2.size() >= tmp_map3.size() + tmp_map4.size()){
+                    atom_map.putAll(tmp_map1);
+                    atom_map.putAll(tmp_map2);
+                }else{
+                    atom_map.putAll(tmp_map3);
+                    atom_map.putAll(tmp_map4);
+                }
+            }
+        }else{
+            // First map for products
+            Set<String> mapped_atom = new HashSet<>();
+            for(int i=0; i<products1_acs.getAtomContainerCount(); i++){
+                IAtomContainer mol1 = products1_acs.getAtomContainer(i);
+                for(IAtom atom1: mol1.atoms()){
+                    if(atom1.getMapIdx() == 0) continue;
+                    boolean atom1_found = false;
+                    for(int j=0; j<products2_acs.getAtomContainerCount(); j++){
+                        IAtomContainer mol2 = products2_acs.getAtomContainer(j);
+                        for(IAtom atom2: mol2.atoms()){
+                            if(atom2.getMapIdx() == 0) continue;
+                            if(CompareAtomsInTwoMols(atom1, atom2, mol1, mol2)){
+                                if(atom_map.containsKey(":"+atom2.getMapIdx()+"]")) continue;
+                                atom_map.put(":"+atom2.getMapIdx()+"]", ":"+atom1.getMapIdx() +"]");
+                                atom1_found = true;
+                                mapped_atom.add(":"+atom1.getMapIdx()+"]");
+                                break;
+                            }
+                        }
+                        if(atom1_found) break;
+                    }
+                }
+            }
+            // Then map for reactants
+            for(int i=0; i<reactants1_acs.getAtomContainerCount(); i++){
+                IAtomContainer mol1 = reactants1_acs.getAtomContainer(i);
+                for(IAtom atom1: mol1.atoms()){
+                    if(atom1.getMapIdx() == 0) continue;
+                    if(mapped_atom.contains(":"+atom1.getMapIdx()+"]")) continue;
+                    boolean atom1_found = false;
+                    for(int j=0; j<reactants2_acs.getAtomContainerCount(); j++){
+                        IAtomContainer mol2 = reactants2_acs.getAtomContainer(j);
+                        for(IAtom atom2: mol2.atoms()){
+                            if(atom2.getMapIdx() == 0) continue;
+                            if(CompareAtomsInTwoMols(atom1, atom2, mol1, mol2)){
+                                if(atom_map.containsKey(":"+atom2.getMapIdx()+"]")) continue;
+                                atom_map.put(":"+atom2.getMapIdx()+"]", ":"+atom1.getMapIdx()+"]");
+                                atom1_found = true;
+                                break;
+                            }
+                        }
+                        if(atom1_found) break;
+                    }
+                }
+            }
+        }
+        return atom_map;
+    }
+
+    /**
+     * Find the same atom (same symbol & same connectivity) in two atom containers
+     * @param mol1
+     * @param mol2
+     * @return
+     * @throws Exception
+     */
+    private Map<String, String> compareInAtomContainer(IAtomContainer mol1, IAtomContainer mol2) throws Exception {
+
+        Map<String, String> atom_map = new HashMap<>();
+
+        for(IAtom atom1: mol1.atoms()){
+            if(atom1.getMapIdx() == 0) continue;
+            for(IAtom atom2: mol2.atoms()){
+                if(atom2.getMapIdx() == 0) continue;
+                if(CompareAtomsInTwoMols(atom1, atom2, mol1, mol2)){
+                    atom_map.put(":"+atom2.getMapIdx()+"]", ":"+atom1.getMapIdx()+"]");
+                    break;
+                }
+            }
+        }
+        return atom_map;
+    }
+
+    /**
+     * Compare whether two atoms in two atom containers are the same (same symbol & same connectivity)
+     * @param atom1
+     * @param atom2
+     * @param mol1
+     * @param mol2
+     * @return
+     * @throws Exception
+     */
+    private boolean CompareAtomsInTwoMols(IAtom atom1, IAtom atom2, IAtomContainer mol1, IAtomContainer mol2) throws Exception {
+
+        if(mol1.getAtomCount() == 1 && mol2.getAtomCount() == 1 && atom1.getAtomicNumber() == atom2.getAtomicNumber()){
+            return true;
+        }
+
+        MACCSFingerprinter fingerprinter = new MACCSFingerprinter();
+
+        IAtomContainer copied_mol1 = new AtomContainer();
+        for(IAtom atom: mol1.atoms()){
+            if(atom.getMapIdx() == atom1.getMapIdx()) continue;
+            copied_mol1.addAtom(atom);
+        }
+        for(IBond bond: mol1.bonds()){
+            if(bond.getBegin().getMapIdx() == atom1.getMapIdx() || bond.getEnd().getMapIdx() == atom1.getMapIdx()) continue;
+            copied_mol1.addBond(bond);
+        }
+
+        IAtomContainer copied_mol2 = new AtomContainer();
+        for(IAtom atom: mol2.atoms()){
+            if(atom.getMapIdx() == atom2.getMapIdx()) continue;
+            copied_mol2.addAtom(atom);
+        }
+        for(IBond bond: mol2.bonds()){
+            if(bond.getBegin().getMapIdx() == atom2.getMapIdx() || bond.getEnd().getMapIdx() == atom2.getMapIdx()) continue;
+            copied_mol2.addBond(bond);
+        }
+
+        SmilesGenerator g = new SmilesGenerator(SmiFlavor.Canonical);
+        SmilesParser sp  = new SmilesParser(SilentChemObjectBuilder.getInstance());
+        String smiles1 = g.create(copied_mol1);
+        String smiles2 = g.create(copied_mol2);
+
+        copied_mol1 = sp.parseSmiles(smiles1);
+        copied_mol2 = sp.parseSmiles(smiles2);
+
+        AtomContainerManipulator.percieveAtomTypesAndConfigureAtoms(copied_mol1);
+        AtomContainerManipulator.percieveAtomTypesAndConfigureAtoms(copied_mol2);
+
+        CDKHydrogenAdder adder = CDKHydrogenAdder.getInstance(
+                DefaultChemObjectBuilder.getInstance()
+        );
+
+        adder.addImplicitHydrogens(copied_mol1);
+        adder.addImplicitHydrogens(copied_mol2);
+
+        BitSet bitset1 = fingerprinter.getBitFingerprint(copied_mol1).asBitSet();
+        BitSet bitSet2 = fingerprinter.getBitFingerprint(copied_mol2).asBitSet();
+
+        float sim_change = Similarity.getTanimotoSimilarity(bitset1, bitSet2);
+
+        if(sim_change != 1.0f) return false;
+        else return true;
+    }
+
+    private String connectCenters(IReaction performAtomAtomMapping, SmilesGenerator sg, SmilesParser sp, int radius) throws Exception {
+
+        String mappedReaction = sg.create(performAtomAtomMapping);
+        Set<Integer> changed_atom_tags = getChangedAtoms(performAtomAtomMapping, radius);
+        // Extract reaction center from reactants and products
+        IAtomContainer reactant_fragments = getFragmentsMol(performAtomAtomMapping.getReactants(), changed_atom_tags);
+        IAtomContainer product_fragments = getFragmentsMol(performAtomAtomMapping.getProducts(), changed_atom_tags);
+
+        IAtomContainer ordered_product_fragments = new AtomContainer();
+        for (IAtom atom: product_fragments.atoms()){
+            ordered_product_fragments.addAtom(atom);
+        }
+        List<IBond> bonds_cache = new ArrayList<>();
+        for (IBond bond: product_fragments.bonds()){
+            if (bond.getOrder() == IBond.Order.SINGLE) {
+                bonds_cache.add(bond);
+            }else{
+                ordered_product_fragments.addBond(bond);
+            }
+        }
+
+        for (IBond bond: bonds_cache) ordered_product_fragments.addBond(bond);
+        product_fragments = ordered_product_fragments;
+
+
+        String rule_original_id = cleanSMIRKS(reactant_fragments, product_fragments, sg, changed_atom_tags, performAtomAtomMapping, false);
+        String reactants = rule_original_id.split(">>")[0];
+
+        if(!reactants.contains("."))  {
+            String connected_rule = rule_original_id;
+            if(generalizeIgnoreHydrogen){
+                connected_rule = connected_rule.replaceAll("H[0-9]*", "");
+            }
+            connected_rule = completeWithHydrogen(connected_rule, performAtomAtomMapping,sp);
+
+            return unmapUnrelated(reactant_fragments, product_fragments, connected_rule, changed_atom_tags);
+
+        };
+
+        // Prepare for the dynamic table. First, get all the MapIDs
+        Set<Integer> mapIds = new HashSet<>();
+        for (int i=0; i< performAtomAtomMapping.getReactants().getAtomContainerCount(); i++){
+            for (IAtom atom: performAtomAtomMapping.getReactants().getAtomContainer(i).atoms()){
+                if (atom.getMapIdx() != 0) mapIds.add(atom.getMapIdx());
+            }
+        }
+
+        List<Integer> mapIds_list = new ArrayList<>(mapIds);
+        Map<Integer, Integer> ids2index = new HashMap<>();
+
+        for (int i=0; i<mapIds_list.size(); i++){
+            ids2index.put(mapIds_list.get(i), i);
+        }
+
+        int[][] reactant_dynamic_table = new int[mapIds_list.size()][mapIds_list.size()];
+
+        // Fill dynamic table with large (unrealistic) value
+        for (int i=0; i<mapIds_list.size(); i++){
+            for (int j=0; j<mapIds_list.size(); j++){
+                reactant_dynamic_table[i][j] = 1000;
+            }
+        }
+
+        IAtomContainer reactant= sp.parseSmiles(mappedReaction.split(">>")[0]);
+        for (IAtom atom: reactant.atoms()){
+            Set<Integer> visited = new HashSet<>();
+            BFSDistance(reactant_dynamic_table, reactant, ids2index, atom, visited);
+        }
+
+        // Get disconnected components from reactants
+        String[] components = reactants.split("\\.");
+        List<List<Integer>> component_ids = new ArrayList<>();
+        for (int i=0; i<components.length; i++){
+            List<String> segments = new ArrayList<>();
+            List<Integer> segments_id = new ArrayList<>();
+            getSegmentsWithID(components[i], segments, segments_id);
+            component_ids.add(segments_id);
+        }
+
+        // Enumerate all the possible connections among all the disconnected components
+
+        List<List<Integer>> iterations = new ArrayList<>();
+
+        for (int id: component_ids.get(0)){
+            List<Integer> tmp_list = new ArrayList<>();
+            tmp_list.add(id);
+            iterations.add(tmp_list);
+        }
+
+        for (int i=1; i<component_ids.size(); i++){
+            List<List<Integer>> expanded_lists = new ArrayList<>();
+
+            for (List<Integer> list: iterations){
+                for (int id: component_ids.get(i)){
+                    List<Integer> tmp_list = new ArrayList<>();
+                    tmp_list.addAll(list);
+                    tmp_list.add(id);
+                    expanded_lists.add(tmp_list);
+                }
+            }
+            iterations = expanded_lists;
+        }
+
+        int min_dist = 100;
+        List<Integer> shortest_path = new ArrayList<>();
+
+        for (List<Integer> ids: iterations){
+            List<List<Integer>> permute = permute(ids);
+            for (List<Integer> iter: permute){
+                int dist = 0;
+                for (int j=0; j<iter.size()-1; j++){
+                    dist += reactant_dynamic_table[ids2index.get(iter.get(j))][ids2index.get(iter.get(j+1))];
+                }
+                if (dist < min_dist){
+                    min_dist = dist;
+                    shortest_path = iter;
+                }
+            }
+        }
+
+        // Trace back the shortest path
+        List<Integer> path = new ArrayList<>();
+        for (int i=0; i<shortest_path.size()-1; i++){
+
+            int start = shortest_path.get(i);
+            int end = shortest_path.get(i+1);
+            int dist = reactant_dynamic_table[ids2index.get(start)][ids2index.get(end)];
+
+            for (int step=1; step<dist; step++){
+                for (int inter_id: ids2index.keySet()){
+                    if (reactant_dynamic_table[ids2index.get(start)][ids2index.get(inter_id)] == 1 &&
+                            reactant_dynamic_table[ids2index.get(inter_id)][ids2index.get(end)] == dist-step){
+                        path.add(inter_id);
+                        start = inter_id;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Add atoms on the path to changed_atom_tags
+        changed_atom_tags.addAll(path);
+        // Connected reactant fragments
+        IAtomContainer new_reactant_fragments = getFragmentsMol(performAtomAtomMapping.getReactants(), changed_atom_tags);
+        IAtomContainer new_product_fragments = getFragmentsMol(performAtomAtomMapping.getProducts(), changed_atom_tags);
+
+        String connected_rule = cleanSMIRKS(new_reactant_fragments, new_product_fragments, sg, changed_atom_tags, performAtomAtomMapping, false);
+
+        if(generalizeIgnoreHydrogen){
+            connected_rule = connected_rule.replaceAll("H[0-9]*", "");
+        }
+
+        connected_rule = completeWithHydrogen(connected_rule, performAtomAtomMapping,sp);
+
+        return unmapUnrelated(new_reactant_fragments, new_product_fragments, connected_rule, changed_atom_tags);
+
+    }
+
+    private void BFSDistance(int[][] dynamic_table, IAtomContainer compound, Map<Integer, Integer> ids2index, IAtom atom, Set<Integer> visited){
+
+        List<IAtom> queue = new ArrayList<>();
+        int row = ids2index.get(atom.getMapIdx());
+        dynamic_table[row][row] = 0;
+        queue.add(atom);
+
+        while(!queue.isEmpty()){
+            IAtom current_atom = queue.remove(0);
+            visited.add(current_atom.getMapIdx());
+
+            for (IBond bond: compound.bonds()){
+                if(bond.getBegin().getMapIdx() == current_atom.getMapIdx() && !visited.contains(bond.getEnd().getMapIdx())){
+                    queue.add(bond.getEnd());
+                    if (dynamic_table[row][ids2index.get(bond.getEnd().getMapIdx())] > dynamic_table[row][ids2index.get(current_atom.getMapIdx())] + 1) {
+                        dynamic_table[row][ids2index.get(bond.getEnd().getMapIdx())] = dynamic_table[row][ids2index.get(current_atom.getMapIdx())] + 1;
+                    }
+                }else if(bond.getEnd().getMapIdx() == current_atom.getMapIdx() && !visited.contains(bond.getBegin().getMapIdx())){
+                    queue.add(bond.getBegin());
+                    if (dynamic_table[row][ids2index.get(bond.getBegin().getMapIdx())] > dynamic_table[row][ids2index.get(current_atom.getMapIdx())] + 1) {
+                        dynamic_table[row][ids2index.get(bond.getBegin().getMapIdx())] = dynamic_table[row][ids2index.get(current_atom.getMapIdx())] + 1;
+                    }
+                }
+            }
+        }
+    }
+
+    // The permutation code is adapted from
+    // https://java2blog.com/permutations-array-java/
+    private List<List<Integer>> permute(List<Integer> arr) {
+        List<List<Integer>> list = new ArrayList<>();
+        permuteHelper(list, new ArrayList<>(), arr);
+        return list;
+    }
+
+    private void permuteHelper(List<List<Integer>> list, List<Integer> resultList, List<Integer> arr){
+
+        // Base case
+        if(resultList.size() == arr.size()){
+            list.add(new ArrayList<>(resultList));
+        }
+        else{
+            for(int i = 0; i < arr.size(); i++){
+
+                if(resultList.contains(arr.get(i)))
+                {
+                    // If element already exists in the list then skip
+                    continue;
+                }
+                // Choose element
+                resultList.add(arr.get(i));
+                // Explore
+                permuteHelper(list, resultList, arr);
+                // Unchoose element
+                resultList.remove(resultList.size() - 1);
+            }
+        }
+    }
+
+    /**
+     * Complete atoms with explicit hydrogen
+     * @param expanded_smirks
+     * @param performAtomAtomMapping
+     * @param smilesParser
+     * @return
+     * @throws CDKException
+     */
+    private String completeWithHydrogen(String expanded_smirks, IReaction performAtomAtomMapping, SmilesParser smilesParser) throws CDKException {
+
+        String reactants = expanded_smirks.split(">>")[0];
+        String products = expanded_smirks.split(">>")[1];
+
+        String[] reactants_list = reactants.split("\\.");
+        String[] products_list = products.split("\\.");
+
+        List<IAtomContainer> reactants_mols = new ArrayList<>();
+        List<IAtomContainer> products_mols = new ArrayList<>();
+
+        for(String reactant_mol: reactants_list){
+            reactants_mols.add(smilesParser.parseSmiles(reactant_mol));
+        }
+        for(String product_mol: products_list){
+            products_mols.add(smilesParser.parseSmiles(product_mol));
+        }
+
+        Map<Integer, Integer> OrigReactants_atoms_orders = new HashMap<>();
+        for (int i=0; i<performAtomAtomMapping.getReactants().getAtomContainerCount(); i++){
+            IAtomContainer reactant = performAtomAtomMapping.getReactants().getAtomContainer(i);
+            aromaticity.apply(reactant);
+            for (IAtom atom: reactant.atoms()){
+                if (atom.getMapIdx() != 0){
+                    int bond_orders = 0;
+                    for(IBond bond: reactant.getConnectedBondsList(atom)){
+                        if (bond.getOrder() == IBond.Order.DOUBLE){
+                            bond_orders += 2;
+                        }else if(bond.getOrder() == IBond.Order.SINGLE){
+                            bond_orders += 1;
+                        }else if(bond.getOrder() == IBond.Order.TRIPLE){
+                            bond_orders += 3;
+                        }else{
+                            // Haven't seen quad bonds
+                        }
+
+                        // Correct change of valence cases for S and P
+                        if((atom.getAtomicNumber() == 16 || atom.getAtomicNumber() == 15)
+                                && (bond.getBegin().getAtomicNumber() == 8 || bond.getEnd().getAtomicNumber() == 8)
+                                && bond.getOrder() == IBond.Order.DOUBLE){
+                            bond_orders -= 2;
+                        }
+                    }
+
+                    OrigReactants_atoms_orders.put(atom.getMapIdx(), bond_orders);
+                }
+            }
+        }
+
+        Map<Integer, Integer> OrigProducts_atoms_orders = new HashMap<>();
+        for (int i=0; i<performAtomAtomMapping.getProducts().getAtomContainerCount(); i++){
+            IAtomContainer product = performAtomAtomMapping.getProducts().getAtomContainer(i);
+            aromaticity.apply(product);
+            for (IAtom atom: product.atoms()){
+                if (atom.getMapIdx() != 0){
+                    int bond_orders = 0;
+                    for(IBond bond: product.getConnectedBondsList(atom)){
+                        if (bond.getOrder() == IBond.Order.DOUBLE){
+                            bond_orders += 2;
+                        }else if(bond.getOrder() == IBond.Order.SINGLE){
+                            bond_orders += 1;
+                        }else if(bond.getOrder() == IBond.Order.TRIPLE){
+                            bond_orders += 3;
+                        }else{
+                            // Haven't seen quad bonds
+                        }
+
+                        // Correct change of valence cases for S and P
+                        if((atom.getAtomicNumber() == 16 || atom.getAtomicNumber() == 15)
+                                && (bond.getBegin().getAtomicNumber() == 8 || bond.getEnd().getAtomicNumber() == 8)
+                                && bond.getOrder() == IBond.Order.DOUBLE){
+                            bond_orders -= 2;
+                        }
+                    }
+
+                    OrigProducts_atoms_orders.put(atom.getMapIdx(), bond_orders);
+                }
+            }
+        }
+
+        if(expanded_smirks != null) reactants = expanded_smirks.split(">>")[0];
+
+        for(Map.Entry<Integer, Integer> entry: OrigReactants_atoms_orders.entrySet()){
+            if(OrigProducts_atoms_orders.containsKey(entry.getKey())){
+                if(OrigProducts_atoms_orders.get(entry.getKey()) - entry.getValue() > 0){
+                    int diff = OrigProducts_atoms_orders.get(entry.getKey()) - entry.getValue();
+                    String hydrogen = "";
+                    for(int j=diff; j>0; j--) hydrogen += "([H])";
+                    reactants = reactants.replace(":"+entry.getKey()+"]", ":"+entry.getKey()+"]"+hydrogen);
+                }
+            }
+        }
+
+        return reactants + ">>" + products;
+    }
+
+    private String completeWithHydrogen(String smirks, String expanded_smirks, IReaction performAtomAtomMapping, Map<String, String> atom_map, SmilesParser smilesParser) throws CDKException {
+
+        if(atom_map.isEmpty()) return "";
+
+        Map<Integer, Integer> reverse_mapIds = new HashMap<>();
+        for (Map.Entry<String, String> entry: atom_map.entrySet()){
+            int key = Integer.valueOf(entry.getValue().replace(":", "").replace("]", ""));
+            int value = Integer.valueOf(entry.getKey().replace(":", "").replace("]", ""));
+            reverse_mapIds.put(key, value);
+        }
+
+        // Get implicit hydrogen counts for each atom
+        IAtomContainerSet reactants_set = performAtomAtomMapping.getReactants();
+        IAtomContainerSet products_set = performAtomAtomMapping.getProducts();
+        Map<Integer, Integer> reactants_hydrogen = new HashMap<>();
+        Map<Integer, Integer> products_hydrogen = new HashMap<>();
+
+        for (int i=0; i<reactants_set.getAtomContainerCount(); i++){
+            IAtomContainer mol = reactants_set.getAtomContainer(i);
+            for (IAtom atom: mol.atoms()){
+                reactants_hydrogen.put(atom.getMapIdx(), atom.getImplicitHydrogenCount());
+            }
+        }
+
+        for (int i=0; i<products_set.getAtomContainerCount(); i++){
+            IAtomContainer mol = products_set.getAtomContainer(i);
+            for (IAtom atom: mol.atoms()){
+                products_hydrogen.put(atom.getMapIdx(), atom.getImplicitHydrogenCount());
+            }
+        }
+
+        String reactants = smirks.split(">>")[0];
+        String products = smirks.split(">>")[1];
+
+        String[] reactants_list = reactants.split("\\.");
+        String[] products_list = products.split("\\.");
+
+        List<IAtomContainer> reactants_mols = new ArrayList<>();
+        List<IAtomContainer> products_mols = new ArrayList<>();
+
+        for(String reactant_mol: reactants_list){
+            reactants_mols.add(smilesParser.parseSmiles(reactant_mol));
+        }
+        for(String product_mol: products_list){
+            products_mols.add(smilesParser.parseSmiles(product_mol));
+        }
+
+        // implicit hydrogen bond count
+        Map<Integer, Integer> reactants_bonds_count = new HashMap<>();
+        Map<Integer, Integer> products_bonds_count = new HashMap<>();
+
+        for(IAtomContainer reactant_mol: reactants_mols){
+            for(IAtom atom: reactant_mol.atoms()) {
+                if(atom.getMapIdx() != 0 && reverse_mapIds.containsKey(atom.getMapIdx())){
+                    int hydrogen_count = reactants_hydrogen.get(reverse_mapIds.get(atom.getMapIdx()));
+                    reactants_bonds_count.put(atom.getMapIdx(), hydrogen_count);
+                }
+            }
+        }
+
+        for(IAtomContainer product_mol: products_mols){
+            for(IAtom atom: product_mol.atoms()) {
+                if(atom.getMapIdx() != 0 && reverse_mapIds.containsKey(atom.getMapIdx())){
+                    int hydrogen_count = products_hydrogen.get(reverse_mapIds.get(atom.getMapIdx()));
+                    products_bonds_count.put(atom.getMapIdx(), hydrogen_count);
+                }
+            }
+        }
+
+        if(expanded_smirks != null) reactants = expanded_smirks.split(">>")[0];
+
+        for(Map.Entry<Integer, Integer> entry: reactants_bonds_count.entrySet()){
+            if(products_bonds_count.containsKey(entry.getKey())){
+                if(products_bonds_count.get(entry.getKey()) - entry.getValue() < 0){
+                    int diff = entry.getValue() - products_bonds_count.get(entry.getKey()) ;
+                    String hydrogen = "";
+                    for(int j=diff; j>0; j--) hydrogen += "([H])";
+                    reactants = reactants.replace(":"+entry.getKey()+"]", ":"+entry.getKey()+"]"+hydrogen);
+                }
+            }
+        }
+        return reactants + ">>" + products;
+    }
+
+    /**
+     * In generalized form, atoms might look like [C;$(condition_1),$(condition_2)...,$(condition_3):1]. This method
+     * will calculate InChiKey for each condition.
+     * @param condition
+     * @param smilesParser
+     * @param factory
+     * @return
+     * @throws CDKException
+     */
+    private String getInChiKeyOfCondition(String condition, SmilesParser smilesParser, InChIGeneratorFactory factory) throws CDKException {
+
+        IAtomContainer mol = smilesParser.parseSmiles(condition);
+        AtomContainerManipulator.percieveAtomTypesAndConfigureAtoms(mol);
+        InChIGenerator generator = factory.getInChIGenerator(mol);
+
+        ///////////////////////////////////////////////////////////////
+        // It resolves the problem that "[O]-[C](:[C]):[C]" and "[O]-[C](-[C])-[C]" have the same InchiKey
+        // Combines the Inchikey with the number of aromatic bonds
+        int aromatic_bonds = 0;
+        for(IBond bond: mol.bonds()){
+            if(bond.isAromatic()) aromatic_bonds ++ ;
+        }
+
+        String expanded_inchikey = generator.getInchiKey() + "-" + aromatic_bonds;
+
+        return expanded_inchikey;
+    }
+
+    /**
+     * Change the mapping IDs of rule to make them start from 1
+     * @param smirks
+     * @return
+     */
+    private String initializeStandardizedMapping(String smirks){
+
+        String reactants1 = smirks.split(">>")[0];
+        Map<String, String> level1_map = new HashMap<>();
+        Map<String, String> level2_map = new HashMap<>();
+
+        int mapID = 0;
+        String tmp_seg = "";
+        boolean start = false;
+
+        for(int i=0; i<reactants1.length(); i++){
+            char c = reactants1.charAt(i);
+            if(c == '[') start = true;
+            if(start) tmp_seg += c;
+            if(c == ']'){
+                start = false;
+                int cur_map = -1;
+                try{
+                    String[] pieces = tmp_seg.split(":");
+                    String last_piece = pieces[pieces.length-1];
+                    cur_map = Integer.valueOf(last_piece.substring(0, last_piece.length()-1));
+                }catch (Exception e){
+                    // Do nothing
+                }
+                if(cur_map != -1){
+                    mapID ++;
+                    // Two levels, to avoid cases
+                    // e.g [1,2] 1->2, 2->1. Want to get [2,1], but will end up with [1,1]
+                    level1_map.put(""+cur_map, "a"+mapID);
+                    level2_map.put("a"+mapID, ""+mapID);
+                }
+                tmp_seg = "";
+            }
+        }
+
+        for(Map.Entry<String, String> entry: level1_map.entrySet()){
+            smirks = smirks.replace(":"+entry.getKey()+"]", ":"+entry.getValue()+"]");
+        }
+
+        for(Map.Entry<String, String> entry: level2_map.entrySet()){
+            smirks = smirks.replace(":"+entry.getKey()+"]", ":"+entry.getValue()+"]");
+        }
+
+        return smirks;
     }
 
     private String generalizedForm(String base_rule, IReaction performAtomAtomMapping, SmilesParser smilesParser, SmilesGenerator sg, int radius, boolean unmapUnrelated) throws Exception {
@@ -160,7 +1133,163 @@ public class rule_generator {
         String expanded_rule = getNewRule(performAtomAtomMapping, sg, radius, false);
         Set<Integer> unique_id = uniqueMapId(base_reactant, base_product);
 
-        
+        // Get segments and mapId of reactants (reaction center)
+        List<String> reactant_segments = new ArrayList<>();
+        List<Integer> reactant_segmentsId = new ArrayList<>();
+        getSegmentsWithID(base_reactant, reactant_segments, reactant_segmentsId);
+
+        // Store segments of reactants (reaction center) into a map
+        // Reaction center mapIDs.
+        Map<Integer, String> segments_map = new HashMap<>();
+        for (int i=0; i<reactant_segments.size(); i++){
+            segments_map.put(reactant_segmentsId.get(i), reactant_segments.get(i));
+        }
+
+        // Convert the expanded reaction center into AtomContainer
+        String reactant = expanded_rule.split(">>")[0];
+        IAtomContainer m = smilesParser.parseSmiles(reactant);
+
+        // Correct aromatic bond in reaction center (fragments) based on the original molecule
+        IAtomContainerSet wholeMolecule = performAtomAtomMapping.getReactants();
+        correctAromaticBondInRing(m, wholeMolecule);
+
+        // Get the map from atom mapId to symbol
+        Map<Integer, String> atom_symbol_map = new HashMap<>();
+        for(IAtom atom: m.atoms()){
+            atom_symbol_map.put(atom.getMapIdx(), atom.getSymbol());
+        }
+
+        // Now, collect all the bonds that connect atoms in the original reaction center (d=0) of reactant
+        List<IBond> center_bonds = new ArrayList<>();
+        for(IBond bond: m.bonds()){
+            if(segments_map.containsKey(bond.getBegin().getMapIdx()) && segments_map.containsKey(bond.getEnd().getMapIdx())) center_bonds.add(bond);
+        }
+
+        // Remove them from the AtomContainer, so the context information for each center atom is independent.
+        for(IBond bond: center_bonds){
+            m.removeBond(bond);
+        }
+
+        Map<Integer, String> generalized_map = new HashMap<>();
+        for(IAtom atom: m.atoms()){
+            if(segments_map.containsKey(atom.getMapIdx())){
+                String generalized = getGeneralizedSmilesForAtom(atom, m, sg);
+                generalized_map.put(atom.getMapIdx(), generalized);
+            }
+        }
+
+        // Replace with the generalized form
+        for(Map.Entry<Integer, String> entry: generalized_map.entrySet()){
+            base_reactant = base_reactant.replace(segments_map.get(entry.getKey()), entry.getValue());
+        }
+
+        if(unmapUnrelated){
+            for(int tag: unique_id){
+                String tag_s = ":" + tag;
+                base_reactant = base_reactant.replace(tag_s, "");
+                base_product = base_product.replace(tag_s, "");
+            }
+        }
+
+        return base_reactant + ">>" + base_product;
+
+    }
+
+    private String getGeneralizedSmilesForAtom(IAtom center_atom, IAtomContainer expanded_reactant_mol, SmilesGenerator sg) throws CDKException {
+
+        List<IAtom> reachableAtoms = new ArrayList<>();
+        Set<Integer> visited = new HashSet<>();
+        List<IAtom> atom_queue = new ArrayList<>();
+        atom_queue.add(center_atom);
+        reachableAtoms.add(center_atom);
+
+        // BFS search: First, find all the reachable atoms from center_atom
+        while(atom_queue.size()!=0){
+
+            IAtom current_atom = atom_queue.remove(0);
+            visited.add(current_atom.getMapIdx());
+            List<IAtom> neighbors = findNeighborsOfAtom(current_atom, expanded_reactant_mol, visited);
+            atom_queue.addAll(neighbors);
+            reachableAtoms.addAll(neighbors);
+        }
+
+        // Create a new molecule with ordered atoms (center_atom should be in the first place)
+        IAtomContainer ordered_mol = new AtomContainer();
+        for(IAtom atom: reachableAtoms){
+            ordered_mol.addAtom(atom);
+        }
+
+        // Then, add all the bonds from the original molecule that are inside the reachable groups
+        // Non-single bond will be first added. In case it is in a ring but not explicitly specified
+        // e.g. [C:1]1-C-C-C-[N:2]1. If the bond connecting two ends is actually [N:2]=[C:1], then this SMARTS is wrong
+        // Instead, it should be rearranged as [C:1]1=[N:2]-C-C-C1
+        List<IBond> bonds_cache = new ArrayList<>();
+        for(IBond bond: expanded_reactant_mol.bonds()){
+            if(visited.contains(bond.getBegin().getMapIdx()) && visited.contains(bond.getEnd().getMapIdx())) {
+                if(bond.getOrder()!=IBond.Order.SINGLE) ordered_mol.addBond(bond);
+                else bonds_cache.add(bond);
+            }
+        }
+        for(IBond bond:bonds_cache) ordered_mol.addBond(bond);
+
+        String fragment_smiles = sg.create(ordered_mol);
+        IAtomContainerSet ordered_mol_sets = new AtomContainerSet();
+        ordered_mol_sets.addAtomContainer(ordered_mol);
+
+        fragment_smiles = replaceWithExplicitBond(ordered_mol_sets, fragment_smiles, true, true);
+        String generalized = "[" + center_atom.getSymbol() + ";$(" + fragment_smiles.replaceAll(":[0-9]+", "") + ")" + ":" + center_atom.getMapIdx() + "]";
+
+        return generalized;
+    }
+
+    private List<IAtom> findNeighborsOfAtom(IAtom center_atom, IAtomContainer mol, Set<Integer> visited){
+
+        List<IAtom> neighbors = new ArrayList<>();
+
+        for(IBond bond: mol.bonds()){
+            if(bond.getBegin().getMapIdx() == center_atom.getMapIdx()){
+                if(!visited.contains(bond.getEnd().getMapIdx())){
+                    neighbors.add(bond.getEnd());
+                }
+            }else if(bond.getEnd().getMapIdx() == center_atom.getMapIdx()){
+                if(!visited.contains(bond.getBegin().getMapIdx())){
+                    neighbors.add(bond.getBegin());
+                }
+            }
+        }
+
+        return neighbors;
+    }
+
+    private void correctAromaticBondInRing(IAtomContainer mol, IAtomContainerSet wholeMolecule) throws CDKException {
+
+        for(IBond bond: mol.bonds()){
+
+            Set<Integer> bond_ends = new HashSet<>();
+            bond_ends.add(bond.getBegin().getMapIdx());
+            bond_ends.add(bond.getEnd().getMapIdx());
+
+            for(int i=0; i<wholeMolecule.getAtomContainerCount(); i++){
+                IAtomContainer reactant = wholeMolecule.getAtomContainer(i);
+                aromaticity.apply(reactant);
+                for(IBond reactant_bond: reactant.bonds()){
+                    int match = 0;
+                    if(bond_ends.contains(reactant_bond.getBegin().getMapIdx())) match++;
+                    if(bond_ends.contains(reactant_bond.getEnd().getMapIdx())) match++;
+
+                    if(match == 2){
+                        if(bond.getOrder() != reactant_bond.getOrder()){
+                            bond.setOrder(reactant_bond.getOrder());
+                        }
+
+                        if(bond.isAromatic() != reactant_bond.isAromatic()){
+                            bond.setIsAromatic(reactant_bond.isAromatic());
+                        }
+                    }
+                }
+            }
+        }
+        return;
     }
 
     /**
@@ -620,6 +1749,5 @@ public class rule_generator {
         br.close();
         return reactions;
     }
-
 
 }
