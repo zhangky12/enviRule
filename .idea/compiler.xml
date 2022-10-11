@@ -9,5 +9,46 @@
         <module name="rdt" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="ambit2-all" target="1.8" />
+      <module name="ambit2-balloon" target="1.8" />
+      <module name="ambit2-base" target="1.8" />
+      <module name="ambit2-chebi" target="1.8" />
+      <module name="ambit2-core" target="1.8" />
+      <module name="ambit2-db" target="1.8" />
+      <module name="ambit2-dbext" target="1.8" />
+      <module name="ambit2-dbui" target="1.8" />
+      <module name="ambit2-descriptors" target="1.8" />
+      <module name="ambit2-dragon" target="1.8" />
+      <module name="ambit2-export" target="1.8" />
+      <module name="ambit2-fp" target="1.8" />
+      <module name="ambit2-groupcontribution" target="1.8" />
+      <module name="ambit2-jchempaint" target="1.8" />
+      <module name="ambit2-markush" target="1.8" />
+      <module name="ambit2-ml" target="1.8" />
+      <module name="ambit2-ml-carrot" target="1.8" />
+      <module name="ambit2-mlcommon" target="1.8" />
+      <module name="ambit2-mlib" target="1.8" />
+      <module name="ambit2-mlio" target="1.8" />
+      <module name="ambit2-moa" target="1.8" />
+      <module name="ambit2-model" target="1.8" />
+      <module name="ambit2-mopac" target="1.8" />
+      <module name="ambit2-namestructure" target="1.8" />
+      <module name="ambit2-notation" target="1.8" />
+      <module name="ambit2-poi" target="1.8" />
+      <module name="ambit2-pubchem" target="1.8" />
+      <module name="ambit2-reactions" target="1.8" />
+      <module name="ambit2-rendering" target="1.8" />
+      <module name="ambit2-rest" target="1.8" />
+      <module name="ambit2-rules" target="1.8" />
+      <module name="ambit2-sln" target="1.8" />
+      <module name="ambit2-smarts" target="1.8" />
+      <module name="ambit2-smi23d" target="1.8" />
+      <module name="ambit2-some" target="1.8" />
+      <module name="ambit2-structure2name" target="1.8" />
+      <module name="ambit2-tautomers" target="1.8" />
+      <module name="ambit2-ui" target="1.8" />
+      <module name="ambit2-weka" target="1.8" />
+    </bytecodeTargetLevel>
   </component>
 </project>

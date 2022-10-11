@@ -1,5 +1,6 @@
-package eawag.envirule;
+package eawag.envirule.servelet;
 
+import eawag.envirule.modules.rule_generator;
 import org.apache.commons.cli.*;
 import uk.ac.ebi.reactionblast.Generate_r_class;
 

@@ -1,7 +1,7 @@
-package eawag.envirule;
+package eawag.envirule.servelet;
 
+import eawag.envirule.modules.rxn_clusterer;
 import org.apache.commons.cli.*;
-import uk.ac.ebi.reactionblast.Clustering_rxn_class;
 
 public class rxn_clusterer_servelet {
 

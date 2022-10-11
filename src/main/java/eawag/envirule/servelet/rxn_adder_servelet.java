@@ -1,7 +1,7 @@
-package eawag.envirule;
+package eawag.envirule.servelet;
 
+import eawag.envirule.modules.rxn_adder;
 import org.apache.commons.cli.*;
-import uk.ac.ebi.reactionblast.tools.Adding_rxn_class;
 
 import java.io.File;
 import java.util.Set;

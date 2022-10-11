@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/ambit2-ml-carrot/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/ambit2-moa/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/../ambit-git/ambit2-all/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/../ambit-git/ambit2-all/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
   </component>

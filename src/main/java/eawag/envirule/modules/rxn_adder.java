@@ -1,4 +1,4 @@
-package eawag.envirule;
+package eawag.envirule.modules;
 
 import org.apache.commons.io.FileUtils;
 import org.openscience.cdk.DefaultChemObjectBuilder;

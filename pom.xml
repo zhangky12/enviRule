@@ -132,7 +132,12 @@
             <artifactId>org.apache.commons.io</artifactId>
             <version>2.4</version>
         </dependency>
-       
+        <dependency>
+            <groupId>ambit</groupId>
+            <artifactId>ambit2-smarts</artifactId>
+            <version>4.0.1-SNAPSHOT</version>
+        </dependency>
+
     </dependencies>
     <profiles>
         <profile>

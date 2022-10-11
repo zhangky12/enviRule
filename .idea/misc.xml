@@ -5,7 +5,50 @@
     <option name="originalFiles">
       <list>
         <option value="$PROJECT_DIR$/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/pom.xml" />
       </list>
+    </option>
+    <option name="ignoredFiles">
+      <set>
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-balloon/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-base/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-chebi/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-core/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-db/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-dbext/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-dbui/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-descriptors/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-dragon/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-export/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-fp/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-groupcontribution/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-jchempaint/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-markush/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/ambit2-ml-carrot/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/ambit2-mlcommon/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/ambit2-mlib/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/ambit2-mlio/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/ambit2-moa/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/ambit2-weka/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ml/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-model/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-mopac/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-namestructure/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-notation/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-poi/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-pubchem/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-reactions/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-rendering/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-rest/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-rules/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-sln/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-smarts/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-smi23d/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-some/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-structure2name/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-tautomers/pom.xml" />
+        <option value="$PROJECT_DIR$/../ambit-git/ambit2-all/ambit2-ui/pom.xml" />
+      </set>
     </option>
   </component>
   <component name="ProjectRootManager" version="2" languageLevel="JDK_11" default="true" project-jdk-name="11" project-jdk-type="JavaSDK" />

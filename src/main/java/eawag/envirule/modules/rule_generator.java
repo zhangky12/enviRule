@@ -1,4 +1,4 @@
-package eawag.envirule;
+package eawag.envirule.modules;
 
 import org.openscience.cdk.AtomContainer;
 import org.openscience.cdk.AtomContainerSet;

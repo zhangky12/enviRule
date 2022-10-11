@@ -1,4 +1,4 @@
-package eawag.envirule;
+package eawag.envirule.modules;
 
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.exception.CDKException;
