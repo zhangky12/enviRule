@@ -2,7 +2,6 @@ package eawag.envirule.servelet;
 
 import eawag.envirule.modules.rule_generator;
 import org.apache.commons.cli.*;
-import uk.ac.ebi.reactionblast.Generate_r_class;
 
 import java.util.Set;
 
@@ -57,7 +56,7 @@ public class rule_generator_servelet {
 
     public Set<String> run(boolean generalizeIgnoreHydrogen, boolean includeFunctionalGroups, String file, int radius) throws Exception {
 
-        Generate_r_class generator = new Generate_r_class(generalizeIgnoreHydrogen, includeFunctionalGroups, file, radius);
+        rule_generator generator = new rule_generator(generalizeIgnoreHydrogen, includeFunctionalGroups, file, radius);
         return generator.generate();
     }
 

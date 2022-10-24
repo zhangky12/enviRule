@@ -3,11 +3,11 @@ package eawag.envirule.modules;
 import org.apache.commons.io.FileUtils;
 import org.openscience.cdk.DefaultChemObjectBuilder;
 import org.openscience.cdk.smiles.SmilesParser;
-import uk.ac.ebi.reactionblast.Clustering_rxn_class;
-import uk.ac.ebi.sim_test;
 
 import java.io.*;
 import java.util.*;
+
+import static eawag.envirule.modules.rxn_clusterer.compareDict;
 
 public class rxn_adder {
 
@@ -37,9 +37,9 @@ public class rxn_adder {
 
         // Clustering for new reactions
         Map<String, Map<Integer, Double>> reactionFPs = new HashMap<String, Map<Integer, Double>>();
-        List<String> reactions = Clustering_rxn_class.parseReactions(new_rxn_file, sp, reactionFPs);
+        List<String> reactions = rxn_clusterer.parseReactions(new_rxn_file, sp, reactionFPs);
 
-        Map<String, Set<String>> clusters = Clustering_rxn_class.getClusters(reactions, sp, reactionFPs, new_database, true);
+        Map<String, Set<String>> clusters = rxn_clusterer.getClusters(reactions, sp, reactionFPs, new_database, true);
 
         // Load the centerMaps from new clustering
         Map<String, Map<Integer, Double>> new_centerMaps = null;
@@ -56,7 +56,7 @@ public class rxn_adder {
             Map<Integer, Double> fingerprint = new_centerMaps.get(center);
 
             for (String old_center: centerMaps.keySet()){
-                if (sim_test.compareDict(fingerprint, centerMaps.get(old_center))==1.0F){
+                if (compareDict(fingerprint, centerMaps.get(old_center))==1.0F){
                     String old_rxn_file = map_file.get(old_center);
                     rxn_combine.put(center, old_rxn_file);
                     center_match.put(old_center, center);
