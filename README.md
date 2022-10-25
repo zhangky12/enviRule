@@ -1,40 +1,21 @@
 Introduction
 ============
 
-`Reaction Decoder Tool (RDT)`
+`Eawag enviRule`
 -----------------------------
 
-`1. Atom Atom Mapping (AAM) Tool`
+`1. Reaction clustering tool`
 
-`2. Reaction Annotator (Extract Bond Changes, Identify & Mark Reaction Centres) and `
+`2. Automatic extracting rules from biotransformation reactions and `
 
-`3. Reaction Comparator (Reaction Similarity based on the Bond Changes, Reaction Centres or Substructures)`
+`3. Automatic updating rules with additional reactions`
+
+Eawag enviRule is built on top of [Reaction Decoder Tool (rdt)] (https://github.com/asad/ReactionDecoder).
 
 Contact
 ============
-Author: Dr. Syed Asad Rahman
-e-mail: asad.rahman@bioinceptionlabs.com
-
-Installation
-============
-
-`a)` You could [download the latest RDT] (https://github.com/asad/ReactionDecoder/releases) release version from the github.
-
-`b)` Compile the core code using `maven`?:
-
-`POM.xml` commands
-
-```
-
-use POM.xml and mvn commands to build your project
-1) mvn -DskipTests=true install (skip test)
-2) mvn install (include test)
-3) mvn clean (clean)
-4) mvn package
-5) mvn -P local clean install -DskipTests=true (fast single jar compilation, skip test)
-6) mvn -P local clean install (single jar compilation with test)
-
-```
+Author: Kunyang Zhang
+e-mail: kunyang.zhang@eawag.ch
 
 Atom Atom Mapping using Java API
 =================================
