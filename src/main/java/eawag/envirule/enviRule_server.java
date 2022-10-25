@@ -3,7 +3,6 @@ package eawag.envirule;
 import eawag.envirule.servelet.rule_generator_servelet;
 import eawag.envirule.servelet.rxn_adder_servelet;
 import eawag.envirule.servelet.rxn_clusterer_servelet;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

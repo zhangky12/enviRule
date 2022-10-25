@@ -6,7 +6,7 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="rdt" />
+        <module name="envirule" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
@@ -49,6 +49,7 @@
       <module name="ambit2-tautomers" target="1.8" />
       <module name="ambit2-ui" target="1.8" />
       <module name="ambit2-weka" target="1.8" />
+      <module name="rdt" target="11" />
     </bytecodeTargetLevel>
   </component>
 </project>
