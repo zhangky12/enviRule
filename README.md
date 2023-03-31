@@ -74,6 +74,21 @@ public static void main(String args[]) throws UnknownHostException, IOException{
 		
 		socket.close();
 }
+
+public static void clusteringReactions(String reaction_file, String output_dir, 
+			ObjectInputStream objectInput, PrintWriter out) throws Exception {
+		
+		String cluster_command = "rxnclust -r " + reaction_file + " -d " + output_dir;
+		out.println(cluster_command);
+		String result = (String)objectInput.readObject();
+		if(result == null) {
+			System.out.println("Null response");
+			throw new Exception("Clustering failed");
+		}else{
+			System.out.println(result);
+		}
+		
+}
 ```
 
 Automatic rule generation with enviRule
@@ -86,6 +101,9 @@ public static void main(String args[]) throws UnknownHostException, IOException{
 		System.out.println("Connected");
 		ObjectInputStream objectInput = new ObjectInputStream(socket.getInputStream());
 		PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+		
+		// Replace here with your local directory
+		String dir = "...";
 		
 		// Generating rules	
 		Map<String, List<String>> autoRules = new HashMap<>();
@@ -118,6 +136,56 @@ public static void main(String args[]) throws UnknownHostException, IOException{
 		socket.close();
 		
 }
+
+public static Map<String, List<String>> generatingRulesforFiles(Set<String> file_names, 
+			ObjectInputStream objectInput, PrintWriter out, boolean ignoreHydrogen, 
+			boolean functionalGroups, int radius) throws ClassNotFoundException, IOException{
+		
+		Map<String, List<String>> autoRules = new HashMap<>();
+		
+		
+		String includeHydrogen_arg;
+		String functionalGroups_arg;
+		
+		if(ignoreHydrogen) {
+			includeHydrogen_arg = "true";
+		}else includeHydrogen_arg = "false";
+		
+		if(functionalGroups) {
+			functionalGroups_arg = "true";
+		}else functionalGroups_arg = "false";
+		
+		
+		for (String file_name: file_names) {
+			
+			List<String> rule_smarts = new ArrayList<>();
+			
+			String command = "autorule -i " + includeHydrogen_arg + " -fg " + 
+			functionalGroups_arg + " -f " + file_name + " -r " + radius;
+			out.println(command);
+			Set<String> rules = (Set<String>)objectInput.readObject();
+			if(rules == null || rules.size()==0) {
+				System.out.println("Null response");
+				continue;
+			}
+			
+			rule_smarts.addAll(rules);
+			
+			try {
+				String[] file_name_segs = file_name.split("/");
+				file_name = file_name_segs[file_name_segs.length-1];
+				String rule_name_base = "rule-" + file_name.split("-")[0];
+				autoRules.put(rule_name_base, rule_smarts);
+				
+			}catch (Exception e) {
+				System.out.println(e.getMessage());
+				continue;
+			}	
+		}
+		
+		return autoRules;
+
+}
 ```
 From the client side, you will see the following results. rule-1 and rule-2 are simple rules, while rule-3 is a composite rule, consisting of two simple rules
 ```
@@ -131,11 +199,8 @@ The reaction adder module in enviRule server will backup the old clustered react
 ```
 public static void main(String args[]) throws UnknownHostException, IOException{
 		
-		// Connect to enviRule server
-		Socket socket = new Socket("127.0.0.1", 5000);
-		System.out.println("Connected");
-		ObjectInputStream objectInput = new ObjectInputStream(socket.getInputStream());
-		PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+		// Replace here with your local directory
+		String dir = "...";
 		
 		// Updating rules
 		String new_rxn_file = dir + "reactions_new.txt";
@@ -151,7 +216,31 @@ public static void main(String args[]) throws UnknownHostException, IOException{
 		
 		System.out.println(changed_rxn_files);
 		
+}
+
+public static Set<String> addReactions(String new_rxn_file, String old_database, String new_database) throws Exception {
+    	
+    	// Connect to enviRule server
+		Socket socket = new Socket("127.0.0.1", 5000);
+		System.out.println("Connected");
+    	
+		ObjectInputStream objectInput
+		= new ObjectInputStream(socket.getInputStream());
+		PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+		
+		// Adding reactions
+		String add_command = "rxnadder -r " + new_rxn_file + " -b " + old_database + " -n " + new_database;
+		out.println(add_command);
+		// Get updated or newly created files
+		Set<String> result = (Set<String>)objectInput.readObject();
+		if(result == null || result.size()==0) {
+			System.out.println("Null response");
+			throw new Exception("Adding reactions failed");
+		}
+		
 		socket.close();
+		
+		return result;
 		
 }
 ```
