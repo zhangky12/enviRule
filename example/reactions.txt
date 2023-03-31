@@ -1,0 +1,10 @@
+CN1C=NC2=C1C(=O)NC(=O)N2C>>CN1C2=C(C(=O)NC1=O)NC=N2
+CN1C=NC2=C1C(=O)N(C)C(=O)N2C>>CN1C2=C(C(=O)N(C)C1=O)NC=N2
+CN1C=NC2=C1C(=O)NC(=O)N2>>C1=NC2=C(C(=O)NC(=O)N2)N1
+CC1=NC(=C(CN)C=N1)N>>CC1=NC(=C(C=N1)CO)N
+C(=C\C(=O)[O-])/C(=C\C(=O)C(=O)[O-])/N>>C(=C\C(=O)[O-])/C(=C\C(=O)C(=O)[O-])/O
+CCOC(=O)CC(C(=O)OCC)SP(=S)(OC)OC>>CCOC(=O)CC(C(=O)OCC)SP(=O)(OC)OC
+COP(=S)([O-])OC>>COP(=O)([O-])OC
+CCOP(=S)([O-])[O-]>>CCOP(=O)([O-])[O-]
+CCOP(=S)(OCC)OC1=CC=C(C=C1)[N+](=O)[O-]>>CCOP(=O)(OCC)OC1=CC=C(C=C1)[N+](=O)[O-]
+CCOP(=S)([O-])OCC>>CCOP(=O)([O-])OCC

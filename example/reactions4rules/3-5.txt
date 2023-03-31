@@ -1,0 +1,5 @@
+CCOC(=O)CC(C(=O)OCC)SP(=S)(OC)OC>>CCOC(=O)CC(C(=O)OCC)SP(=O)(OC)OC
+COP(=S)([O-])OC>>COP(=O)([O-])OC
+CCOP(=S)([O-])[O-]>>CCOP(=O)([O-])[O-]
+CCOP(=S)(OCC)OC1=CC=C(C=C1)[N+](=O)[O-]>>CCOP(=O)(OCC)OC1=CC=C(C=C1)[N+](=O)[O-]
+CCOP(=S)([O-])OCC>>CCOP(=O)([O-])OCC

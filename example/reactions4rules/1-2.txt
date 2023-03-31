@@ -1,0 +1,2 @@
+CC1=NC(=C(CN)C=N1)N>>CC1=NC(=C(C=N1)CO)N
+C(=C\C(=O)[O-])/C(=C\C(=O)C(=O)[O-])/N>>C(=C\C(=O)[O-])/C(=C\C(=O)C(=O)[O-])/O
