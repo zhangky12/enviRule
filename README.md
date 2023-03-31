@@ -27,6 +27,9 @@ You will be able to see the following message, which means the server is ready t
 Welcome to enviRule developed by EAWAG!
 Waiting for a client ...
 ```
+
+###Note: you can find reactions to play with under the folder "example"
+
 Connect to enviRule server from a client
 ==========================================
 ```
