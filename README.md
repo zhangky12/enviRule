@@ -17,18 +17,44 @@ Contact
 Author: Kunyang Zhang
 e-mail: kunyang.zhang@eawag.ch
 
+###Note: you can find reactions to play with under the folder "example"
+
+
+Fast Start
+======================
+Make sure you have java installed on the computer, for example:
+```markdown
+java version "16.0.1" 2021-04-20
+Java(TM) SE Runtime Environment (build 16.0.1+9-24)
+Java HotSpot(TM) 64-Bit Server VM (build 16.0.1+9-24, mixed mode, sharing)
+```
+Please always replace "<...>" with your local address in the following examples. The envirule_toy.jar can be found under output/artifacts/envirule_toy/
+
+1. Reaction clustering
+```markdown
+java -jar envirule_toy.jar -operation cluster -reactions <path to reaction file reactions.txt> -output <choose a folder to store clustered groups. E.g., reactions4rules>
+```
+2. Rule generation
+```markdown
+java -jar envirule_toy.jar -operation generator -group <path to any clustered group from the last step. E.g., 1-2.txt> -radius 1
+```
+3. Adding reactions
+```markdown
+java -jar envirule_toy.jar -operation adder -reactions <path to new reaction file reactions_new.txt> -input <path to existing clustered reaction groups. E.g., reactions4rules> -output <choose a folder to store updated clustered groups. E.g., updated_reactions4rules>
+```
+
+To use enviRule in a more flexible way, you can start enviRule server and send commands to it via a client. The following examples basically replicate what we have just done, but through the server & client interactions. 
+
 Start enviRule server
 ========================
 ```
-java -jar enviRule.jar
+java -jar envirule.jar
 ```
 You will be able to see the following message, which means the server is ready to accept requests.
 ```
 Welcome to enviRule developed by EAWAG!
 Waiting for a client ...
 ```
-
-###Note: you can find reactions to play with under the folder "example"
 
 Connect to enviRule server from a client
 ==========================================
