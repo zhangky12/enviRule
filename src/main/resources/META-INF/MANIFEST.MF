@@ -1,3 +1,3 @@
 Manifest-Version: 1.0
-Main-Class: uk.ac.ebi.reactionblast.EnviRule_v1_server
+Main-Class: eawag.envirule.enviRule_server
 

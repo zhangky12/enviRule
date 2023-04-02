@@ -6,7 +6,7 @@ import eawag.envirule.servelet.rxn_clusterer_servelet;
 import java.util.*;
 
 public class enviRule_toy {
-    
+
     public static void main(String[] args) throws Exception {
 
         CommandLineParser clp = new CommandLineParser(args);
