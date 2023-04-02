@@ -20,7 +20,7 @@ e-mail: kunyang.zhang@eawag.ch
 ###Note: you can find reactions to play with under the folder "example"
 
 
-Fast Start
+Quick start
 ======================
 Make sure you have java installed on the computer, for example:
 ```markdown
