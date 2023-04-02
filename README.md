@@ -32,16 +32,18 @@ Please always replace "<...>" with your local address in the following examples.
 
 1. Reaction clustering
 ```markdown
-java -jar envirule_toy.jar -operation cluster -reactions <path to reaction file reactions.txt> -output <choose a folder to store clustered groups. E.g., reactions4rules>
+java -jar envirule_toy.jar -operation cluster -reactions <path to reaction file reactions.txt> -output <choose a folder (end with '/') to store clustered groups. E.g., reactions4rules/>
 ```
 2. Rule generation
 ```markdown
 java -jar envirule_toy.jar -operation generator -group <path to any clustered group from the last step. E.g., 1-2.txt> -radius 1
 ```
+ps: If you see more than one lines of rules, it suggests the extracted rule is a composite rule.
 3. Adding reactions
 ```markdown
-java -jar envirule_toy.jar -operation adder -reactions <path to new reaction file reactions_new.txt> -input <path to existing clustered reaction groups. E.g., reactions4rules> -output <choose a folder to store updated clustered groups. E.g., updated_reactions4rules>
+java -jar envirule_toy.jar -operation adder -reactions <path to new reaction file reactions_new.txt> -input <path to existing clustered reaction groups (end with '/'). E.g., reactions4rules/> -output <choose a folder (end with '/') to store updated clustered groups. E.g., updated_reactions4rules/>
 ```
+ps: It will return the reaction groups that are updated or created with your new reactions.
 
 To use enviRule in a more flexible way, you can start enviRule server and send commands to it via a client. The following examples basically replicate what we have just done, but through the server & client interactions. 
 
