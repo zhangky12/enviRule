@@ -17,7 +17,7 @@ Contact
 Author: Kunyang Zhang
 e-mail: kunyang.zhang@eawag.ch
 
-###Note: you can find reactions to play with under the folder "example"
+###Note: you can find reactions to play with under the folder "example". You can apply automatically extracted rules on reactions with envipath_reaction (https://github.com/zhangky12/envipath_reaction)
 
 
 Quick start
@@ -49,6 +49,7 @@ To use enviRule in a more flexible way, you can start enviRule server and send c
 
 Start enviRule server
 ========================
+The envirule.jar can be found under output/artifacts/envirule_server/
 ```
 java -jar envirule.jar
 ```
