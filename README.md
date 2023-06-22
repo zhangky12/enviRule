@@ -1,6 +1,8 @@
 Introduction
 ============
 
+This is the implementation of enviRule in the paper "enviRule: An End-to-end System for Automatic Extraction of Reaction Patterns from Environmental Contaminant Biotransformation Pathways" by Kunyang Zhang and Prof. Dr. Kathrin Fenner.
+
 `Eawag enviRule`
 -----------------------------
 
