@@ -17,7 +17,7 @@ Contact
 Author: Kunyang Zhang
 e-mail: kunyang.zhang@eawag.ch
 
-###Note: you can find reactions to play with under the folder "example". You can apply automatically extracted rules on reactions with envipath_reaction (https://github.com/zhangky12/envipath_reaction)
+Note: you can find reactions to play with under the folder "example". You can apply automatically extracted rules on reactions with envipath_reaction (https://github.com/zhangky12/envipath_reaction). The script for evaluating external rules from https://doi.org/10.1016/j.ymben.2021.02.006 can be found in MERules_exp (https://github.com/zhangky12/MERules_exp).
 
 
 Quick start
