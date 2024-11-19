@@ -41,6 +41,7 @@ java -jar envirule_toy.jar -operation cluster -reactions <path to reaction file 
 java -jar envirule_toy.jar -operation generator -group <path to any clustered group from the last step. E.g., 1-2.txt> -radius 1
 ```
 ps: If you see more than one lines of rules, it suggests the extracted rule is a composite rule.
+
 3. Adding reactions
 ```markdown
 java -jar envirule_toy.jar -operation adder -reactions <path to new reaction file reactions_new.txt> -input <path to existing clustered reaction groups (end with '/'). E.g., reactions4rules/> -output <choose a folder (end with '/') to store updated clustered groups. E.g., updated_reactions4rules/>
